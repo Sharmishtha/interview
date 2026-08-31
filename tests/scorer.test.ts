@@ -8,7 +8,7 @@ import {
 } from "../src/scoring/scorer.js";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { createSession, recordAnswer } from "../src/panel/session.js";
-import { PILLAR_ORDER, questionBank, questionById, selectQuestions } from "../src/questions/bank.js";
+import { PILLAR_ORDER, pressureQuestions, questionBank, questionById, selectQuestions } from "../src/questions/bank.js";
 import { competencies, competencyById, pillars } from "../src/rubric/competencies.js";
 import { dimensions } from "../src/rubric/dimensions.js";
 import type { AnswerScore, DimensionScore } from "../src/types.js";
@@ -227,5 +227,30 @@ describe("buildScorecard", () => {
     await expect(scoreAnswers(session, new HeuristicEvaluator())).rejects.toThrow(
       /unknown question/,
     );
+  });
+});
+
+describe("pressure questions", () => {
+  it("covers all nine principles with a harder variant each", () => {
+    expect(pressureQuestions).toHaveLength(9);
+    expect(new Set(pressureQuestions.map((q) => q.competency)).size).toBe(9);
+    for (const question of pressureQuestions) {
+      expect(question.intensity).toBe("pressure");
+      expect(question.probes.length).toBeGreaterThan(0);
+      expect(question.pillar).toBe(competencyById.get(question.competency)!.pillar);
+    }
+  });
+
+  it("draws from the requested pool", () => {
+    expect(selectQuestions(0, "guide").every((q) => q.intensity === "guide")).toBe(true);
+    expect(selectQuestions(0, "pressure").every((q) => q.intensity === "pressure")).toBe(true);
+  });
+
+  it("still returns one question per pillar at every intensity", () => {
+    for (const intensity of ["guide", "pressure", "mixed"] as const) {
+      const selected = selectQuestions(12345, intensity);
+      expect(selected).toHaveLength(3);
+      expect(new Set(selected.map((q) => q.pillar))).toEqual(new Set(PILLAR_ORDER));
+    }
   });
 });

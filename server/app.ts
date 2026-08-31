@@ -37,10 +37,14 @@ export const app = new Hono<{ Bindings: Env }>();
 app.get("/api/interview", (c) => {
   // The guide's process: one top-line question per pillar.
   const seed = Number(c.req.query("seed") ?? Date.now());
+  // ?intensity=pressure draws the harder failure-owning variants instead.
+  const requested = c.req.query("intensity");
+  const intensity =
+    requested === "pressure" || requested === "mixed" ? requested : ("guide" as const);
 
   return c.json({
     panelists: executivePanel,
-    questions: selectQuestions(Number.isFinite(seed) ? seed : Date.now()),
+    questions: selectQuestions(Number.isFinite(seed) ? seed : Date.now(), intensity),
     rubric: {
       pillars,
       competencies: competencies.map(({ id, name, pillar, description, positiveSignals }) => ({

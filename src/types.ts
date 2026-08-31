@@ -98,6 +98,12 @@ export interface InterviewQuestion {
   pillar: PillarId;
   askedBy: Panelist["id"];
   probes: Probe[];
+  /**
+   * "guide" questions are the interview guide's own top-line questions.
+   * "pressure" questions are harder variants on the same competency: each one
+   * requires owning a failure, which is where the negative signals show up.
+   */
+  intensity: "guide" | "pressure";
 }
 
 // ---------------------------------------------------------------------------

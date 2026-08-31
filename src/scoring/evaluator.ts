@@ -17,16 +17,27 @@ export interface Evaluator {
 // Signal patterns
 // ---------------------------------------------------------------------------
 
+/**
+ * Outcomes are stated in whatever unit the business uses, so currency and
+ * percentages alone are not enough. A survey score moving "up by 12 points" and
+ * a capability going "from 210 channels to 10,000" are both hard results, and an
+ * earlier, narrower list scored both as entirely unquantified.
+ */
 const METRIC_PATTERNS = [
   /\$\s?\d[\d,.]*\s?(?:k|m|bn?|million|billion|thousand)?/gi,
   /\d[\d,.]*\s?%/g,
   /\b\d+(?:\.\d+)?\s?x\b/gi,
   /\b\d[\d,.]*\s?(?:bps|basis points)\b/gi,
-  // Engineering outcomes are usually stated in time and count units, not currency.
+  // Before-and-after movement, in any unit.
   /\bfrom \d[\d,.]*[^.]{0,24}?\bto \d[\d,.]*/gi,
+  /\b(?:up|down|rose|fell|grew|increased|decreased|reduced|improved)\b[^.]{0,15}?\bby \d[\d,.]*/gi,
+  /\b\d[\d,.]*\s?(?:points?|pts)\b/gi,
+  // Time and magnitude.
   /\b\d[\d,.]*\s?(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\b/gi,
   /\b\d[\d,.]*\s?(?:million|billion|thousand)\b/gi,
+  // Countable business units.
   /\b\d[\d,.]*\s?(?:engineer[- ]months?|incidents?|sev\s?\d|outages?|deploys?)\b/gi,
+  /\b\d[\d,.]*\s?(?:channels?|devices?|projects?|accounts?|markets?|tickets?|releases?|teams?|hires?)\b/gi,
 ];
 
 const SCALE_PATTERNS = [
@@ -34,6 +45,8 @@ const SCALE_PATTERNS = [
   /\b\d[\d,.]*\s?(?:million|billion|k|m)?\s?(?:people|employees|engineers|developers|reports|headcount|staff|users|customers|actives)\b/gi,
   /\$\s?\d[\d,.]*\s?(?:k|m|bn?|million|billion)?\b/gi,
   /\b\d[\d,.]*\s?(?:million|billion)\b/gi,
+  /\b(?:millions?|thousands?|hundreds?) of \w+/gi,
+  /\b\d[\d,.]*\s?(?:channels?|devices?|markets?|accounts?|countries|regions)\b/gi,
   /\b(?:P&L|ARR|EBITDA|MAU|DAU|run[- ]rate)\b/gi,
 ];
 
@@ -75,19 +88,40 @@ const DEFLECTION_PATTERNS = [
   /\bwith what we were given\b/gi,
 ];
 
+/**
+ * The "L" of STAR-L. People signal reflection in far more ways than a fixed
+ * handful of stock phrases, and a real transcript exposed that: "I wish I could
+ * have talked to our CEO" and "if I would handle something differently" are
+ * among the most reflective things anyone can say, and an earlier, narrower list
+ * scored both as no learning at all.
+ */
 const LEARNING_PATTERNS = [
-  /\bin hindsight\b/gi,
+  // Retrospective framing
+  /\b(?:in|with) hindsight\b/gi,
   /\blooking back\b/gi,
-  /\bi(?:'d| would)(?: have)? done? [^.]{0,25}differently\b/gi,
-  /\bwhat i learned\b/gi,
-  /\bi was wrong\b/gi,
-  /\bmy mistake\b/gi,
-  /\bi should have\b/gi,
-  /\bi underestimated\b/gi,
-  /\bif i had to do it again\b/gi,
-  /\b(?:this |the )?experience taught me\b/gi,
+  /\bknowing what i know now\b/gi,
+  /\bat the time i (?:thought|believed|assumed)\b/gi,
+  // Counterfactuals - what they would change
+  /\bi wish i (?:had|could|would|'d)\b/gi,
+  /\bif i (?:had|were|would|could)\b[^.]{0,50}?\b(?:again|differently|over|back)\b/gi,
+  /\b(?:do|did|done|handle|handled|approach|approached|play|played)\b[^.]{0,25}\bdifferently\b/gi,
+  /\bnext time\b/gi,
+  /\bi (?:should|could) have\b/gi,
+  /\bwould have (?:been better|helped)\b/gi,
+  // Naming the lesson
+  /\bwhat (?:i|did i) learn(?:ed)?\b/gi,
+  /\bi learn(?:ed|t)\b/gi,
+  /\b(?:it|that|this|the experience) taught me\b/gi,
+  /\bthe lesson\b/gi,
+  /\bmy (?:takeaway|learning)\b/gi,
   /\bwhat i took (?:away )?from\b/gi,
-  /\bi grew\b/gi,
+  // Owning the error
+  /\bi (?:was|got it|got that) wrong\b/gi,
+  /\bmy (?:mistake|error|fault)\b/gi,
+  /\bi regret\b/gi,
+  /\bi (?:underestimated|overestimated|misjudged|misread|missed)\b/gi,
+  /\bi realis(?:ed|e)\b|\bi realiz(?:ed|e)\b/gi,
+  /\bi (?:grew|have grown)\b/gi,
 ];
 
 const SITUATION_PATTERNS = [

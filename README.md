@@ -74,6 +74,13 @@ aligned to STAR-L:
 questions, one of which the panel asks live as a follow-up. The rest appear on the scorecard so
 you can rehearse them.
 
+**Pressure questions.** Alongside the guide's nine top-line questions there is a harder variant
+for each principle, every one of which requires owning a failure rather than narrating a success
+- a failed strategy, a promotion that did not work out, a time you stayed silent. That is where
+the guide's negative signals actually surface, because a rehearsed candidate can carry the
+standard questions on prepared material. Request them with `?intensity=pressure`, or
+`?intensity=mixed` to draw from both pools.
+
 ## Coaching: how to reach 8+
 
 The scorecard's centrepiece. For every answer it lists the highest-leverage changes, **priced
@@ -135,7 +142,7 @@ rather than asserted away.
 src/
   types.ts              domain types
   rubric/               9 competencies with signals and 5 bands each; 6 STAR-L dimensions
-  questions/bank.ts     9 top-line questions, one per competency, with the guide's probes
+  questions/bank.ts     9 guide questions + 9 harder pressure variants, all with probes
   panel/                CTO + CEO panel, session lifecycle
   scoring/
     evaluator.ts         Evaluator interface + deterministic HeuristicEvaluator
@@ -150,7 +157,7 @@ server/
 worker/index.ts         Cloudflare Worker adapter
 wrangler.toml           Worker + static asset config
 web/                    Vite + React frontend
-tests/                  58 tests: rubric, scoring math, evaluator, coaching, voice wrappers, eval corpus
+tests/                  74 tests: rubric, scoring math, evaluator, coaching, voice wrappers, eval corpus
 ```
 
 ## Setup
@@ -238,7 +245,7 @@ the coaching — works identically, because they run on the transcript rather th
 | `npm run cf:dev` | Run the Worker locally under workerd |
 | `npm run demo` | Print a scorecard in the terminal, no browser or key needed |
 | `npm run eval` | Run the evaluation set against the rubric |
-| `npm test` | Full test suite (58 tests) |
+| `npm test` | Full test suite (74 tests) |
 | `npm run lint` / `npm run format` | Lint / format |
 
 Two useful details:
