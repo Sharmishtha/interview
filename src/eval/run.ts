@@ -7,8 +7,8 @@ const SHORT: Record<DimensionId, string> = {
   "scope-scale": "scale",
   ownership: "own",
   "quantified-outcomes": "quant",
-  reflection: "refl",
-  structure: "struct",
+  learning: "learn",
+  "star-structure": "starl",
 };
 
 async function main(): Promise<void> {

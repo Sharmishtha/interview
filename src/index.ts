@@ -11,7 +11,7 @@ import type { InterviewSession } from "./types.js";
  * is visible without running a live interview. The answers come from the eval
  * corpus, so the demo and the eval suite never drift apart.
  */
-const DEMO_CASE_IDS = ["platitude-delivery", "architecture-evidenced", "missed-date-owned"];
+const DEMO_CASE_IDS = ["architecture-evidenced", "missed-date-owned", "all-we"];
 
 async function main(): Promise<void> {
   const cases = DEMO_CASE_IDS.map((id) => {

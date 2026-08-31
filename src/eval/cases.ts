@@ -35,7 +35,7 @@ export const evalCases: EvalCase[] = [
   // -------------------------------------------------------------------------
   {
     id: "platitude-delivery",
-    questionId: "predictability-system",
+    questionId: "raise-the-bar",
     tier: "weak",
     note: "Pure leadership philosophy with no situation, no numbers, no arc. The floor case.",
     expect: {
@@ -51,18 +51,18 @@ of the day the team delivered what mattered most to the company.
   },
   {
     id: "too-short",
-    questionId: "missed-date",
+    questionId: "build-resilience",
     tier: "weak",
     note: "Technically responsive but far too thin to be an executive answer.",
-    expect: { compositeMax: 4, dimensions: { structure: { max: 4 } } },
+    expect: { compositeMax: 4, dimensions: { "star-structure": { max: 4 } } },
     answer: `We missed the date because QA took longer than expected. We fixed it in the next sprint.`,
   },
   {
     id: "deflecting",
-    questionId: "missed-date",
+    questionId: "build-resilience",
     tier: "weak",
-    note: "Every failure belongs to another function. Should score near the floor on reflection.",
-    expect: { compositeMax: 4.5, dimensions: { reflection: { max: 3 } } },
+    note: "Every failure belongs to another function. Should score near the floor on learning.",
+    expect: { compositeMax: 4.5, dimensions: { learning: { max: 3 } } },
     answer: `
 Honestly that one was not really an engineering problem. Product kept changing the
 requirements on us and sales had already promised the customer a date nobody in
@@ -72,7 +72,7 @@ the requirements finally settled down we shipped it.
   },
   {
     id: "all-we",
-    questionId: "org-design",
+    questionId: "grow-groundbreakers",
     tier: "weak",
     note: "Hides entirely behind the team; the candidate's own contribution is invisible.",
     expect: { dimensions: { ownership: { max: 3.5 } } },
@@ -88,7 +88,7 @@ down afterwards and we were pleased with how the teams settled.
   // -------------------------------------------------------------------------
   {
     id: "specific-no-numbers",
-    questionId: "incident",
+    questionId: "build-resilience",
     tier: "mixed",
     note: "A real, concrete story with a clear personal role, but nothing is measured.",
     expect: { dimensions: { "quantified-outcomes": { max: 3 }, specificity: { min: 4 } } },
@@ -103,11 +103,11 @@ pool exhaustion in the checkout path.
   },
   {
     id: "numbers-no-reflection",
-    questionId: "rd-budget",
+    questionId: "raise-the-bar",
     tier: "mixed",
     note: "Strong command of the numbers, but no hindsight and nothing they would change.",
     expect: {
-      dimensions: { reflection: { max: 3 }, "quantified-outcomes": { min: 6 } },
+      dimensions: { learning: { max: 3 }, "quantified-outcomes": { min: 6 } },
     },
     answer: `
 I owned a $46 million R&D budget across 210 engineers, which ran at about 22% of
@@ -119,7 +119,7 @@ to roughly 19% of revenue.
   },
   {
     id: "rambling",
-    questionId: "scaling",
+    questionId: "build-resilience",
     tier: "mixed",
     note: "Real substance buried in an unfocused narrative. Structure should be penalised.",
     expect: { compositeMax: 7.5 },
@@ -139,7 +139,7 @@ thing.
   },
   {
     id: "no-team-credit",
-    questionId: "architecture-bet",
+    questionId: "makes-smart-decisions",
     tier: "mixed",
     note: "Fully evidenced but takes every ounce of credit, which reads badly at VP level.",
     expect: { dimensions: { ownership: { max: 7 } } },
@@ -156,7 +156,7 @@ down from 12 a quarter to 2. I should have started sooner, that is on me.
   // -------------------------------------------------------------------------
   {
     id: "architecture-evidenced",
-    questionId: "architecture-bet",
+    questionId: "makes-smart-decisions",
     tier: "strong",
     note: "The reference strong answer: named situation, scale, rejected alternative, numbers, hindsight.",
     expect: { compositeMin: 7.5 },
@@ -175,7 +175,7 @@ is that compliance surface belongs in the sequencing decision, not the rollout p
   },
   {
     id: "missed-date-owned",
-    questionId: "missed-date",
+    questionId: "act-with-courage",
     tier: "strong",
     note: "Owns a public-company miss with escalation timing and the systemic fix.",
     expect: { compositeMin: 7 },
@@ -193,7 +193,7 @@ green suite before it goes into a quarterly plan.
   },
   {
     id: "org-design-evidenced",
-    questionId: "org-design",
+    questionId: "grow-groundbreakers",
     tier: "strong",
     note: "Structure with a rationale, real numbers on span and attrition, an owned bad hire.",
     expect: { compositeMin: 7 },
@@ -211,7 +211,7 @@ and looking back I should have moved 4 months sooner than I did.
   },
   {
     id: "board-case",
-    questionId: "board-technical",
+    questionId: "lead-across",
     tier: "strong",
     note: "Translates a technical investment into business language with a number attached.",
     expect: { compositeMin: 6.5 },
@@ -232,7 +232,7 @@ underestimated how much the board needed to see the downside quantified.
   // -------------------------------------------------------------------------
   {
     id: "keyword-stuffed",
-    questionId: "architecture-bet",
+    questionId: "makes-smart-decisions",
     tier: "weak",
     note: "Semantically empty but hits every surface pattern the heuristic looks for.",
     knownLimitation:
@@ -246,7 +246,7 @@ should have done it differently, and what I learned is that I underestimated it.
   },
   {
     id: "fake-humility",
-    questionId: "expensive-mistake",
+    questionId: "be-real",
     tier: "weak",
     note: "A humblebrag disguised as a failure. Reflection language is present but hollow.",
     knownLimitation:

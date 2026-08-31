@@ -16,23 +16,30 @@ export interface Probe {
 export interface Question {
   id: string;
   text: string;
-  competencies: string[];
+  competency: string;
+  pillar: string;
   askedBy: string;
-  kind: "warmup" | "core" | "stress";
   probes: Probe[];
+}
+
+export interface Pillar {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export interface RubricEntry {
   id: string;
   name: string;
+  pillar?: string;
   description: string;
-  weight: number;
+  positiveSignals?: string[];
 }
 
 export interface Interview {
   panelists: Panelist[];
   questions: Question[];
-  rubric: { competencies: RubricEntry[]; dimensions: RubricEntry[] };
+  rubric: { pillars: Pillar[]; competencies: RubricEntry[]; dimensions: RubricEntry[] };
 }
 
 export interface EvidenceSpan {
@@ -56,9 +63,29 @@ export interface AnswerScore {
 
 export interface CompetencyScore {
   competency: string;
+  pillar: string;
   value: number;
   band: string;
   questionIds: string[];
+}
+
+export interface Lift {
+  dimension: string;
+  from: number;
+  to: number;
+  compositeGain: number;
+  suggestion: string;
+}
+
+export interface AnswerGuidance {
+  questionId: string;
+  composite: number;
+  target: number;
+  reachable: number;
+  lifts: Lift[];
+  probes: { question: string; likelyUncovered: boolean }[];
+  listeningFor: string[];
+  flags: string[];
 }
 
 export interface Scorecard {
@@ -69,6 +96,7 @@ export interface Scorecard {
   overall: number;
   strengths: string[];
   gaps: string[];
+  guidance: AnswerGuidance[];
 }
 
 export interface AnswerRecord {

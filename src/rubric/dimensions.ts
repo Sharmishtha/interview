@@ -1,47 +1,52 @@
 import type { DimensionId, EvidenceDimension } from "../types.js";
 
-/** How a single answer is graded. Weights sum to 1. */
+/**
+ * How a single answer is graded. Weights sum to 1.
+ *
+ * The guide instructs interviewers to establish the Situation, Task, Action,
+ * Result and Learning, so structure and learning carry real weight here.
+ */
 export const dimensions: EvidenceDimension[] = [
   {
     id: "specificity",
     name: "Specificity",
     description:
-      "Names concrete situations, decisions, and people rather than stating a general philosophy.",
-    weight: 0.2,
+      "Names a concrete situation, decision, and people rather than stating a general philosophy.",
+    weight: 0.18,
   },
   {
     id: "scope-scale",
     name: "Scope & scale",
     description:
       "Conveys the size of what was owned - headcount, budget, revenue, market. Calibrates seniority.",
-    weight: 0.15,
+    weight: 0.12,
   },
   {
     id: "ownership",
     name: "Ownership",
     description:
-      "Distinguishes personal action from the team's, and holds accountability for failures rather than deflecting.",
+      "Distinguishes personal action from the team's, and holds accountability rather than shifting blame.",
     weight: 0.15,
   },
   {
     id: "quantified-outcomes",
     name: "Quantified outcomes",
-    description: "States results as numbers, with a before and an after.",
+    description: "States the Result as numbers, with a before and an after.",
+    weight: 0.18,
+  },
+  {
+    id: "learning",
+    name: "Learning",
+    description:
+      "The fifth element of STAR-L: what they took from the experience and would do differently.",
+    weight: 0.17,
+  },
+  {
+    id: "star-structure",
+    name: "STAR-L structure",
+    description:
+      "Situation, Task, Action, Result and Learning are all present and a listener can follow them.",
     weight: 0.2,
-  },
-  {
-    id: "reflection",
-    name: "Reflection",
-    description:
-      "Shows what was learned, what they would do differently, and second-order consequences.",
-    weight: 0.15,
-  },
-  {
-    id: "structure",
-    name: "Structure",
-    description:
-      "Follows a clear situation - complication - action - result arc that a listener can follow.",
-    weight: 0.15,
   },
 ];
 

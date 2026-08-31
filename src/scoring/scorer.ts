@@ -9,6 +9,7 @@ import type {
   InterviewSession,
   Scorecard,
 } from "../types.js";
+import { guidanceFor } from "./coach.js";
 import type { Evaluator } from "./evaluator.js";
 
 /** Weighted roll-up of an answer's dimension scores into a single 0-10 composite. */
@@ -48,8 +49,9 @@ export async function scoreAnswers(
 }
 
 /**
- * Rolls answer composites up into the competencies their questions were tagged
- * with. A competency assessed by several questions is the mean of those answers.
+ * Rolls answer composites up into the competency each question assesses. The
+ * guide asks one question per pillar, so normally each competency is assessed by
+ * exactly one answer.
  */
 export function rollUpCompetencies(
   answerScores: AnswerScore[],
@@ -62,12 +64,10 @@ export function rollUpCompetencies(
     const question = questionById.get(answerScore.questionId);
     if (!question) continue;
 
-    for (const competency of question.competencies) {
-      const bucket = buckets.get(competency) ?? { values: [], questionIds: [] };
-      bucket.values.push(answerScore.composite);
-      bucket.questionIds.push(answerScore.questionId);
-      buckets.set(competency, bucket);
-    }
+    const bucket = buckets.get(question.competency) ?? { values: [], questionIds: [] };
+    bucket.values.push(answerScore.composite);
+    bucket.questionIds.push(answerScore.questionId);
+    buckets.set(question.competency, bucket);
   }
 
   return competencies
@@ -77,6 +77,7 @@ export function rollUpCompetencies(
       const value = round(mean(bucket.values));
       return {
         competency: competency.id,
+        pillar: competency.pillar,
         value,
         band: bandFor(competency, value).descriptor,
         questionIds: bucket.questionIds,
@@ -86,8 +87,8 @@ export function rollUpCompetencies(
 
 /**
  * Overall score, weighted by competency. Weights are renormalised across the
- * competencies actually assessed, so a partial interview is not penalised for the
- * questions it did not reach.
+ * competencies actually assessed, so a three-question session is not penalised
+ * for the six questions it did not reach.
  */
 export function overallScore(competencyScores: CompetencyScore[]): number {
   const totalWeight = competencyScores.reduce(
@@ -104,13 +105,19 @@ export function overallScore(competencyScores: CompetencyScore[]): number {
   return round(weighted / totalWeight);
 }
 
-export function buildScorecard(
-  session: InterviewSession,
-  answerScores: AnswerScore[],
-): Scorecard {
+export function buildScorecard(session: InterviewSession, answerScores: AnswerScore[]): Scorecard {
   const competencyScores = rollUpCompetencies(answerScores, session.questions);
   const ranked = [...competencyScores].sort((a, b) => b.value - a.value);
   const take = Math.min(2, Math.floor(ranked.length / 2));
+
+  const questionById = new Map(session.questions.map((q) => [q.id, q]));
+  const answerById = new Map(session.answers.map((a) => [a.questionId, a.answer]));
+
+  const guidance = answerScores.flatMap((answerScore) => {
+    const question = questionById.get(answerScore.questionId);
+    if (!question) return [];
+    return [guidanceFor(answerScore, question, answerById.get(answerScore.questionId) ?? "")];
+  });
 
   return {
     sessionId: session.id,
@@ -123,6 +130,7 @@ export function buildScorecard(
       .slice(ranked.length - take)
       .reverse()
       .map((s) => s.competency),
+    guidance,
   };
 }
 

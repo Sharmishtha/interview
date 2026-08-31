@@ -11,8 +11,9 @@ async function failure(response: Response): Promise<never> {
   throw new Error(detail);
 }
 
-export async function fetchInterview(count: number): Promise<Interview> {
-  const response = await fetch(`/api/interview?count=${count}`);
+export async function fetchInterview(seed?: number): Promise<Interview> {
+  const query = seed === undefined ? "" : `?seed=${seed}`;
+  const response = await fetch(`/api/interview${query}`);
   if (!response.ok) return failure(response);
   return (await response.json()) as Interview;
 }

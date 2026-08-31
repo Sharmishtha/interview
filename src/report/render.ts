@@ -1,27 +1,29 @@
-import { bandFor, competencyById } from "../rubric/competencies.js";
+import { bandFor, competencyById, pillarById } from "../rubric/competencies.js";
 import { dimensionById } from "../rubric/dimensions.js";
 import { questionById } from "../questions/bank.js";
-import type { AnswerScore, Scorecard } from "../types.js";
+import type { Scorecard } from "../types.js";
 
-/** Renders a scorecard as plain text for the terminal. */
+/** Renders a scorecard, with coaching, as plain text for the terminal. */
 export function renderScorecard(scorecard: Scorecard): string {
   const lines: string[] = [];
 
-  lines.push(`Executive interview scorecard - ${scorecard.candidateName}`);
-  lines.push("=".repeat(64));
+  lines.push(`Executive Leadership Principles - ${scorecard.candidateName}`);
+  lines.push("=".repeat(76));
   lines.push(`Overall: ${scorecard.overall.toFixed(1)}/10`);
   lines.push("");
 
-  lines.push("Competencies");
-  lines.push("-".repeat(64));
   for (const score of scorecard.competencyScores) {
     const competency = competencyById.get(score.competency);
-    const name = competency?.name ?? score.competency;
+    const pillar = pillarById.get(score.pillar)?.name ?? score.pillar;
     const label = competency ? bandFor(competency, score.value).label : "";
-    lines.push(`${name.padEnd(32)} ${score.value.toFixed(1).padStart(4)}  ${bar(score.value)}  ${label}`);
+
+    lines.push(`${pillar.toUpperCase()}`);
+    lines.push(
+      `${(competency?.name ?? score.competency).padEnd(30)} ${score.value.toFixed(1).padStart(4)}  ${bar(score.value)}  ${label}`,
+    );
     lines.push(`  ${score.band}`);
+    lines.push("");
   }
-  lines.push("");
 
   if (scorecard.strengths.length) {
     lines.push(`Strengths: ${scorecard.strengths.map(nameOf).join(", ")}`);
@@ -29,25 +31,34 @@ export function renderScorecard(scorecard: Scorecard): string {
   if (scorecard.gaps.length) {
     lines.push(`Work on:   ${scorecard.gaps.map(nameOf).join(", ")}`);
   }
-  lines.push("");
 
-  lines.push("Answer-level feedback");
-  lines.push("-".repeat(64));
-  for (const answer of scorecard.answerScores) {
-    lines.push(`[${answer.composite.toFixed(1)}] ${questionById.get(answer.questionId)?.text ?? answer.questionId}`);
-    for (const dimension of weakestFirst(answer)) {
-      const label = dimensionById.get(dimension.dimension)?.name ?? dimension.dimension;
-      lines.push(`   ${label} ${dimension.value.toFixed(1)} - ${dimension.rationale}`);
+  lines.push("");
+  lines.push("How to reach 8+");
+  lines.push("-".repeat(76));
+
+  for (const guidance of scorecard.guidance) {
+    const question = questionById.get(guidance.questionId);
+    lines.push(`[${guidance.composite.toFixed(1)} -> ${guidance.reachable.toFixed(1)}] ${question?.text ?? guidance.questionId}`);
+
+    for (const lift of guidance.lifts) {
+      const name = dimensionById.get(lift.dimension)?.name ?? lift.dimension;
+      lines.push(`   +${lift.compositeGain.toFixed(2)}  ${name} ${lift.from.toFixed(1)} -> ${lift.to}`);
+      lines.push(`          ${wrap(lift.suggestion, 66, 10)}`);
+    }
+
+    if (guidance.flags.length) {
+      lines.push(`   Negative signals: ${guidance.flags.join("; ")}`);
+    }
+    if (guidance.probes.length) {
+      lines.push(`   Be ready for these follow-ups (* = likely not covered):`);
+      for (const probe of guidance.probes) {
+        lines.push(`     ${probe.likelyUncovered ? "*" : "-"} ${wrap(probe.question, 66, 7)}`);
+      }
     }
     lines.push("");
   }
 
   return lines.join("\n");
-}
-
-/** Weakest dimensions first: that is where the coaching value is. */
-function weakestFirst(answer: AnswerScore, limit = 3) {
-  return [...answer.dimensionScores].sort((a, b) => a.value - b.value).slice(0, limit);
 }
 
 function nameOf(id: Scorecard["strengths"][number]): string {
@@ -57,4 +68,21 @@ function nameOf(id: Scorecard["strengths"][number]): string {
 function bar(value: number, width = 20): string {
   const filled = Math.round((value / 10) * width);
   return "#".repeat(filled) + ".".repeat(width - filled);
+}
+
+function wrap(text: string, width: number, indent: number): string {
+  const words = text.split(" ");
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    if ((current + word).length > width) {
+      lines.push(current.trimEnd());
+      current = "";
+    }
+    current += `${word} `;
+  }
+  if (current.trim()) lines.push(current.trimEnd());
+
+  return lines.join(`\n${" ".repeat(indent)}`);
 }

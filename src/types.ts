@@ -1,22 +1,29 @@
 // ---------------------------------------------------------------------------
-// Rubric
+// Executive Leadership Principles
 // ---------------------------------------------------------------------------
 
-/**
- * Competencies for a VP of Engineering at a publicly traded company. Several are
- * deliberately public-company specific: delivery predictability matters because
- * dates get tied to guidance, and R&D efficiency matters because R&D as a
- * percentage of revenue is a number the street watches.
- */
+export type PillarId = "plan-with-purpose" | "pursue-excellence" | "prioritize-people";
+
+export interface Pillar {
+  id: PillarId;
+  name: string;
+  description: string;
+}
+
+/** Three competencies per pillar, nine in total. */
 export type CompetencyId =
-  | "technical-judgment"
-  | "org-design-talent"
-  | "delivery-predictability"
-  | "reliability-quality-risk"
-  | "rd-efficiency"
-  | "cross-functional-influence"
-  | "scaling-change"
-  | "judgment-self-awareness";
+  // Plan with Purpose
+  | "turns-vision-into-action"
+  | "makes-smart-decisions"
+  | "energizes-the-team"
+  // Pursue Excellence
+  | "raise-the-bar"
+  | "act-with-courage"
+  | "build-resilience"
+  // Prioritize People
+  | "be-real"
+  | "lead-across"
+  | "grow-groundbreakers";
 
 /** A behaviourally-anchored band: what a score in this range actually looks like. */
 export interface RubricBand {
@@ -29,24 +36,30 @@ export interface RubricBand {
 export interface Competency {
   id: CompetencyId;
   name: string;
+  pillar: PillarId;
   description: string;
   /** Relative weight in the overall score; weights across the rubric sum to 1. */
   weight: number;
+  /** What the interviewer is listening for, verbatim from the interview guide. */
+  positiveSignals: string[];
+  /** What counts against the candidate, verbatim from the interview guide. */
+  negativeSignals: string[];
   bands: RubricBand[];
 }
 
 /**
  * Evidence dimensions are *how* an individual answer is graded. Competencies are
- * *what* is being assessed. Every answer is scored on all six dimensions; those
- * scores then roll up into the competencies the question was tagged with.
+ * *what* is being assessed. The guide asks interviewers to establish the
+ * Situation, Task, Action, Result and Learning, so the dimensions are aligned to
+ * that structure.
  */
 export type DimensionId =
   | "specificity"
   | "scope-scale"
   | "ownership"
   | "quantified-outcomes"
-  | "reflection"
-  | "structure";
+  | "learning"
+  | "star-structure";
 
 export interface EvidenceDimension {
   id: DimensionId;
@@ -70,7 +83,7 @@ export interface Panelist {
   voiceId?: string;
 }
 
-/** A follow-up the panelist should ask when the trigger condition is met. */
+/** An optional probing question from the guide, used to dig into an answer. */
 export interface Probe {
   /** Plain-language condition, e.g. "claims a turnaround without a starting number". */
   trigger: string;
@@ -79,11 +92,11 @@ export interface Probe {
 
 export interface InterviewQuestion {
   id: string;
+  /** The top-line question, asked as written in the guide. */
   text: string;
-  /** Competencies this question rolls up into. */
-  competencies: CompetencyId[];
+  competency: CompetencyId;
+  pillar: PillarId;
   askedBy: Panelist["id"];
-  kind: "warmup" | "core" | "stress";
   probes: Probe[];
 }
 
@@ -134,10 +147,44 @@ export interface AnswerScore {
 
 export interface CompetencyScore {
   competency: CompetencyId;
+  pillar: PillarId;
   value: number;
   /** The band descriptor this score landed in. */
   band: string;
   questionIds: InterviewQuestion["id"][];
+}
+
+// ---------------------------------------------------------------------------
+// Coaching
+// ---------------------------------------------------------------------------
+
+/** One concrete change, and what it is worth on the 0-10 composite. */
+export interface Lift {
+  dimension: DimensionId;
+  from: number;
+  to: number;
+  /** How much this single change adds to the answer's composite score. */
+  compositeGain: number;
+  suggestion: string;
+}
+
+export interface AnswerGuidance {
+  questionId: InterviewQuestion["id"];
+  composite: number;
+  target: number;
+  /** Where the composite lands if the listed lifts are applied. */
+  reachable: number;
+  /** Highest-leverage changes first. */
+  lifts: Lift[];
+  /**
+   * The guide's optional probes for this question, so the candidate can rehearse
+   * them. `likelyUncovered` is a keyword-overlap hint, not a claim of fact.
+   */
+  probes: { question: string; likelyUncovered: boolean }[];
+  /** What the interviewer is listening for on this question's competency. */
+  listeningFor: string[];
+  /** Negative signals this answer appears to trigger. */
+  flags: string[];
 }
 
 export interface Scorecard {
@@ -149,6 +196,7 @@ export interface Scorecard {
   overall: number;
   strengths: CompetencyId[];
   gaps: CompetencyId[];
+  guidance: AnswerGuidance[];
 }
 
 export interface InterviewSession {

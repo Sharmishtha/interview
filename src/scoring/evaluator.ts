@@ -54,7 +54,28 @@ const CONCRETE_PATTERNS = [
   /\bwhen i (?:joined|took over|arrived|started)\b/gi,
 ];
 
-const REFLECTION_PATTERNS = [
+/** The "T" of STAR-L: what they were specifically expected to deliver. */
+const TASK_PATTERNS = [
+  /\bi was (?:asked|brought in|hired|tasked)\b/gi,
+  /\bmy (?:mandate|remit|brief|charge|job was)\b/gi,
+  /\bi was responsible for\b/gi,
+  /\bthe (?:goal|target|mandate|brief|objective) was\b/gi,
+  /\bexpected to deliver\b/gi,
+  /\bwe had committed to\b/gi,
+];
+
+/** Shifting blame outward, a negative signal under Build Resilience and Be Real. */
+const DEFLECTION_PATTERNS = [
+  /\bnot (?:really )?(?:a|an|my|our)[^.]{0,20}\b(?:problem|fault|issue)\b/gi,
+  /\bout of (?:my|our) control\b/gi,
+  /\bwe were given\b/gi,
+  /\bkept changing\b/gi,
+  /\bnobody (?:told|asked|agreed)\b/gi,
+  /\bhad already promised\b/gi,
+  /\bwith what we were given\b/gi,
+];
+
+const LEARNING_PATTERNS = [
   /\bin hindsight\b/gi,
   /\blooking back\b/gi,
   /\bi(?:'d| would)(?: have)? done? [^.]{0,25}differently\b/gi,
@@ -64,6 +85,9 @@ const REFLECTION_PATTERNS = [
   /\bi should have\b/gi,
   /\bi underestimated\b/gi,
   /\bif i had to do it again\b/gi,
+  /\b(?:this |the )?experience taught me\b/gi,
+  /\bwhat i took (?:away )?from\b/gi,
+  /\bi grew\b/gi,
 ];
 
 const SITUATION_PATTERNS = [
@@ -186,8 +210,8 @@ export class HeuristicEvaluator implements Evaluator {
       this.scopeScale(answer),
       this.ownership(answer),
       this.quantifiedOutcomes(answer),
-      this.reflection(answer),
-      this.structure(answer),
+      this.learning(answer),
+      this.starStructure(answer),
     ];
   }
 
@@ -266,26 +290,23 @@ export class HeuristicEvaluator implements Evaluator {
     return score("quantified-outcomes", value, rationale, spans);
   }
 
-  private reflection(answer: string): DimensionScore {
-    const spans = findSpans(answer, REFLECTION_PATTERNS);
+  private learning(answer: string): DimensionScore {
+    const spans = findSpans(answer, LEARNING_PATTERNS);
     const value = spans.length === 0 ? 2.5 : 5 + spans.length * 2;
     const rationale = spans.length
-      ? `Reflective language present, e.g. "${spans[0].text}".`
-      : "No hindsight, no learning, nothing they would do differently.";
+      ? `Learning is stated, e.g. "${spans[0].text}".`
+      : "No hindsight and no learning - the L of STAR-L is missing.";
 
-    return score("reflection", value, rationale, spans);
+    return score("learning", value, rationale, spans);
   }
 
-  private structure(answer: string): DimensionScore {
-    const situation = findSpans(answer, SITUATION_PATTERNS);
-    const action = findSpans(answer, ACTION_PATTERNS);
-    const result = findSpans(answer, RESULT_PATTERNS);
-
-    const parts = [situation, action, result];
-    const present = parts.filter((p) => p.length > 0).length;
+  private starStructure(answer: string): DimensionScore {
+    const found = starElements(answer);
+    const present = STAR_ELEMENTS.filter((element) => found[element].length > 0);
+    const missing = STAR_ELEMENTS.filter((element) => found[element].length === 0);
     const words = wordCount(answer);
 
-    let value = 2 + present * 2.5;
+    let value = 2 + present.length * 1.6;
     let note = "";
 
     if (words < 40) {
@@ -296,17 +317,36 @@ export class HeuristicEvaluator implements Evaluator {
       note = ` At ${words} words it rambles; tighten to the decision and the result.`;
     }
 
-    const missing = [
-      situation.length ? null : "situation",
-      action.length ? null : "action",
-      result.length ? null : "result",
-    ].filter(Boolean) as string[];
-
     const rationale =
       (missing.length
-        ? `Missing ${list(missing)} in the narrative arc.`
-        : "Complete situation - action - result arc.") + note;
+        ? `Missing ${list([...missing])} in the STAR-L arc.`
+        : "Complete Situation - Task - Action - Result - Learning arc.") + note;
 
-    return score("structure", value, rationale, [...situation, ...action, ...result]);
+    return score(
+      "star-structure",
+      value,
+      rationale,
+      present.flatMap((element) => found[element]),
+    );
   }
+}
+
+export const STAR_ELEMENTS = ["situation", "task", "action", "result", "learning"] as const;
+
+export type StarElement = (typeof STAR_ELEMENTS)[number];
+
+/** Which parts of the STAR-L arc appear in an answer, with the spans that show them. */
+export function starElements(answer: string): Record<StarElement, EvidenceSpan[]> {
+  return {
+    situation: findSpans(answer, SITUATION_PATTERNS),
+    task: findSpans(answer, TASK_PATTERNS),
+    action: findSpans(answer, ACTION_PATTERNS),
+    result: findSpans(answer, RESULT_PATTERNS),
+    learning: findSpans(answer, LEARNING_PATTERNS),
+  };
+}
+
+/** Detects blame-shifting language, which the guide lists as a negative signal. */
+export function deflectionSpans(answer: string): EvidenceSpan[] {
+  return findSpans(answer, DEFLECTION_PATTERNS);
 }

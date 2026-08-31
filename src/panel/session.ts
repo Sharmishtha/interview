@@ -6,14 +6,15 @@ export function createSession(params: {
   id: string;
   candidateName: string;
   panelists?: Panelist[];
+  /** Defaults to one question per pillar, as the guide's process requires. */
   questions?: InterviewQuestion[];
-  questionCount?: number;
+  seed?: number;
 }): InterviewSession {
   return {
     id: params.id,
     candidateName: params.candidateName,
     panelists: params.panelists ?? executivePanel,
-    questions: params.questions ?? selectQuestions(params.questionCount ?? 6),
+    questions: params.questions ?? selectQuestions(params.seed),
     answers: [],
     startedAt: new Date().toISOString(),
   };

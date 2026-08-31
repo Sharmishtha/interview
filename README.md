@@ -1,9 +1,11 @@
 # interview
 
-Voice-based interview practice for **VP of Engineering candidates at a public company**.
+Voice-based **VP+ executive interview practice**, built on the Executive Leadership Principles
+interview guide.
 
-A CTO and a CEO ask you questions out loud. You answer out loud. Your transcript is scored
-against a behaviourally-anchored rubric, and you get the evidence behind every score.
+A CTO and a CEO ask you one top-line question per pillar, out loud, then probe. You answer out
+loud. At the end you choose to reveal a scorecard that shows what you scored, the evidence
+behind it, and exactly what would have taken each answer to an 8.
 
 Built as a **rehearsal tool** — you are the interviewee. The output is coaching feedback and
 progress across sessions, not a hire/no-hire verdict.
@@ -32,43 +34,73 @@ The ElevenLabs API key lives only on the server; the browser never sees it.
 
 ## The panel
 
-| Seat | Pushes on |
+| Seat | Asks about |
 | --- | --- |
-| **Ravi Menon**, CTO | Architecture and build-vs-buy judgment, reliability and incident ownership, tech debt, org design |
-| **Claire Whitfield**, CEO | Hitting committed dates when guidance depends on them, R&D spend, conflict with product, board communication |
+| **Ravi Menon**, CTO | Raise the Bar, Act with Courage, Build Resilience, Be Real, Grow Groundbreakers |
+| **Claire Whitfield**, CEO | Turns Vision Into Action, Makes Smart Decisions, Energizes the Team, Lead Across |
 
 ## The rubric
 
-Two layers, which is what makes scoring consistent rather than vibes-based.
+Straight from the interview guide: three pillars, three competencies each, nine in total. A
+session asks **one top-line question per pillar**, as the guide's process requires.
 
-**Competencies** — what is assessed, each with five written band descriptors
-(`src/rubric/competencies.ts`). Several are deliberately public-company specific:
-
-| Competency | Weight |
+| Pillar | Competencies |
 | --- | --- |
-| Technical judgment | 0.16 |
-| Org design & talent | 0.16 |
-| Delivery predictability | 0.16 |
-| Reliability, quality & risk | 0.13 |
-| R&D efficiency | 0.12 |
-| Cross-functional & executive influence | 0.12 |
-| Scaling & change leadership | 0.08 |
-| Judgment & self-awareness | 0.07 |
+| **Plan with Purpose** | Turns Vision Into Action · Makes Smart Decisions · Energizes the Team |
+| **Pursue Excellence** | Raise the Bar · Act with Courage · Build Resilience |
+| **Prioritize People** | Be Real · Lead Across · Grow Groundbreakers |
 
-Delivery predictability carries real weight because dates get tied to guidance; R&D
-efficiency because R&D as a percentage of revenue is a number the street watches;
-reliability includes the SOX and disclosure overlay a private-company VP never meets.
+All nine carry equal weight, because the guide treats the three pillars as equally required.
 
-**Evidence dimensions** — how each answer is graded (`src/rubric/dimensions.ts`):
-specificity · scope & scale · ownership · quantified outcomes · reflection · structure.
+Each competency carries the guide's **positive and negative signals verbatim**, and those drive
+the five band descriptors: the bottom band describes the negative signals, the top band describes
+the positive signals fully realised. Detected negative signals are surfaced on the scorecard in
+the guide's own wording.
 
-Answers are scored on the six dimensions; those composites roll up into the competencies
-their question was tagged with. Written band anchors — rather than a bare 0–10 scale — are
-the single biggest lever on scoring consistency.
+**Evidence dimensions** — how each answer is graded (`src/rubric/dimensions.ts`). The guide asks
+interviewers to establish the Situation, Task, Action, Result and Learning, so the dimensions are
+aligned to STAR-L:
 
-**Probes are data, not improvisation.** Every question carries the follow-ups that turn a
-rehearsed narrative into evidence: *"put a number on it"*, *"what was the strongest case for
-the option you rejected?"*, *"was that date tied to anything we had said publicly?"*
+| Dimension | Weight |
+| --- | --- |
+| STAR-L structure | 0.20 |
+| Specificity | 0.18 |
+| Quantified outcomes | 0.18 |
+| Learning | 0.17 |
+| Ownership | 0.15 |
+| Scope & scale | 0.12 |
+
+**Probes are data, not improvisation.** Every question carries the guide's optional probing
+questions, one of which the panel asks live as a follow-up. The rest appear on the scorecard so
+you can rehearse them.
+
+## Coaching: how to reach 8+
+
+The scorecard's centrepiece. For every answer it lists the highest-leverage changes, **priced
+exactly**: because the composite is a weighted sum of the dimensions, the value of any single
+improvement is computable rather than guessed at.
+
+```
+2.6 -> 6.5  with the 3 changes below
+
++1.44  Specificity  0.0 -> 8
+       Cut the philosophy and open with one named situation instead: the
+       business, the year, and who was involved.
+
++1.26  Quantified outcomes  1.0 -> 8
+       State the Result as a number with a before and an after.
+
++1.20  STAR-L structure  2.0 -> 8
+       Add the Situation, then the Task, then the Action, then the Result,
+       then the Learning. The interviewer is explicitly working to establish
+       all five.
+```
+
+Each answer also shows the negative signals it appears to trigger, the interviewer's follow-ups
+(marked where the answer likely never touched them), and what the interviewer is listening for.
+
+The score is deliberately withheld until you ask for it — the interview ends, then a **See my
+score** button reveals the scorecard.
 
 ## Evaluation set
 
@@ -80,7 +112,7 @@ npm run eval
 ```
 
 ```
-means   weak 2.54   mixed 5.32   strong 7.88   separation 5.34
+means   weak 2.55   mixed 5.13   strong 7.87   separation 5.32
 ranking accuracy (every strong > every weak): 100%
 ```
 
@@ -91,8 +123,8 @@ Two cases are marked `knownLimitation` — reported but not enforced:
 
 | Case | Scores | Why it is wrong |
 | --- | --- | --- |
-| `keyword-stuffed` | 8.46 | Semantically empty but hits every surface pattern — outscores three of four genuine strong answers |
-| `fake-humility` | 6.04 | A humblebrag in hindsight language reads as real self-awareness |
+| `keyword-stuffed` | 8.36 | Semantically empty but hits every surface pattern — outscores three of four genuine strong answers |
+| `fake-humility` | 6.29 | A humblebrag in hindsight language reads as real self-awareness |
 
 These are the standing argument for the LLM evaluator in phase 4, and they are documented
 rather than asserted away.
@@ -102,18 +134,19 @@ rather than asserted away.
 ```
 src/
   types.ts              domain types
-  rubric/               8 competencies with 5 behavioural bands each; 6 evidence dimensions
-  questions/bank.ts     13 VP-Eng questions, competency-tagged, with probes
+  rubric/               9 competencies with signals and 5 bands each; 6 STAR-L dimensions
+  questions/bank.ts     9 top-line questions, one per competency, with the guide's probes
   panel/                CTO + CEO panel, session lifecycle
   scoring/
     evaluator.ts         Evaluator interface + deterministic HeuristicEvaluator
     scorer.ts            dimension -> competency -> overall roll-up
+    coach.ts             priced lifts to 8+, negative-signal flags, open probes
   eval/                 labelled corpus + harness + CLI runner
   tts/ stt/             ElevenLabs speech synthesis and Scribe transcription
   report/render.ts      terminal scorecard
 server/index.ts         Express API: /api/interview, /api/tts, /api/stt, /api/score
 web/                    Vite + React frontend
-tests/                  34 tests: rubric integrity, scoring math, evaluator discrimination, eval corpus
+tests/                  48 tests: rubric integrity, scoring math, evaluator discrimination, eval corpus
 ```
 
 ## Setup
@@ -122,6 +155,7 @@ tests/                  34 tests: rubric integrity, scoring math, evaluator disc
 npm install
 cp .env.example .env   # add your ELEVENLABS_API_KEY
 npm run dev            # API on :3001, UI on :5173
+# ?seed=0 on the UI pins the question set so you can rehearse the same three
 ```
 
 | Command | Description |
@@ -144,7 +178,7 @@ path to use when no microphone is available.
       scoring pipeline, deterministic evaluator, scorecard.
 - [x] **Phase 1 — Voice out.** ElevenLabs TTS asks the questions in distinct panelist voices.
 - [x] **Phase 2 — Voice in.** Browser mic capture → Scribe → transcript → score, with one
-      panel follow-up probe per question.
+      panel follow-up probe per question, and coaching to 8+ on every answer.
 - [ ] **Phase 3 — Natural conversation.** ElevenLabs Agents Platform for real-time turn-taking
       and adaptive probing; agent prompt generated from the question bank.
 - [ ] **Phase 4 — LLM evaluator + trends.** Claude reads the band descriptors and scores with

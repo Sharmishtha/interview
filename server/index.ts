@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { executivePanel, panelistById } from "../src/panel/panelist.js";
 import { questionById, selectQuestions } from "../src/questions/bank.js";
-import { competencies } from "../src/rubric/competencies.js";
+import { competencies, pillars } from "../src/rubric/competencies.js";
 import { dimensions } from "../src/rubric/dimensions.js";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { buildScorecard, scoreAnswers } from "../src/scoring/scorer.js";
@@ -19,17 +19,20 @@ app.use(express.raw({ type: "audio/*", limit: "50mb" }));
 
 /** The interview to run: panel, questions, and the rubric it will be scored against. */
 app.get("/api/interview", (req, res) => {
-  const count = Math.min(Number(req.query.count ?? 6) || 6, 13);
+  // The guide's process: one top-line question per pillar.
+  const seed = Number(req.query.seed ?? Date.now());
 
   res.json({
     panelists: executivePanel,
-    questions: selectQuestions(count),
+    questions: selectQuestions(seed),
     rubric: {
-      competencies: competencies.map(({ id, name, description, weight }) => ({
+      pillars,
+      competencies: competencies.map(({ id, name, pillar, description, positiveSignals }) => ({
         id,
         name,
+        pillar,
         description,
-        weight,
+        positiveSignals,
       })),
       dimensions,
     },

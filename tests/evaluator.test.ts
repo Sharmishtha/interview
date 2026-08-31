@@ -4,7 +4,7 @@ import { questionById } from "../src/questions/bank.js";
 import type { DimensionId, DimensionScore } from "../src/types.js";
 
 const evaluator = new HeuristicEvaluator();
-const question = questionById.get("architecture-bet")!;
+const question = questionById.get("makes-smart-decisions")!;
 
 function valueOf(scores: DimensionScore[], dimension: DimensionId): number {
   return scores.find((s) => s.dimension === dimension)!.value;
@@ -27,7 +27,7 @@ describe("HeuristicEvaluator", () => {
   it("scores all six dimensions", async () => {
     const scores = await evaluator.evaluate(question, EVIDENCED);
     expect(scores.map((s) => s.dimension).sort()).toEqual(
-      ["ownership", "quantified-outcomes", "reflection", "scope-scale", "specificity", "structure"].sort(),
+      ["ownership", "quantified-outcomes", "learning", "scope-scale", "specificity", "star-structure"].sort(),
     );
   });
 
@@ -45,7 +45,7 @@ describe("HeuristicEvaluator", () => {
     const weak = await evaluator.evaluate(question, PLATITUDE);
     const strong = await evaluator.evaluate(question, EVIDENCED);
 
-    for (const dimension of ["specificity", "scope-scale", "quantified-outcomes", "reflection", "structure"] as const) {
+    for (const dimension of ["specificity", "scope-scale", "quantified-outcomes", "learning", "star-structure"] as const) {
       expect(valueOf(strong, dimension)).toBeGreaterThan(valueOf(weak, dimension));
     }
   });
@@ -67,7 +67,7 @@ describe("HeuristicEvaluator", () => {
 
   it("caps structure for an answer too short to be a story", async () => {
     const scores = await evaluator.evaluate(question, "I decided to cut the product line. As a result we grew.");
-    expect(valueOf(scores, "structure")).toBeLessThanOrEqual(4);
+    expect(valueOf(scores, "star-structure")).toBeLessThanOrEqual(4);
   });
 
   it("cites spans that appear in the answer", async () => {

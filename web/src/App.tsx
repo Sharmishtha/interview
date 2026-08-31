@@ -3,48 +3,57 @@ import * as api from "./api";
 import { useRecorder } from "./useRecorder";
 import type { AnswerRecord, Interview, Panelist, Scorecard } from "./types";
 
-type Screen = "setup" | "interview" | "scoring" | "report";
+type Screen = "setup" | "interview" | "complete" | "scoring" | "report";
 type Stage = "asking" | "answering" | "transcribing" | "review" | "probing";
-
-const QUESTION_COUNT = 6;
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
   const [candidateName, setCandidateName] = useState("");
   const [interview, setInterview] = useState<Interview | null>(null);
+  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
   const [scorecard, setScorecard] = useState<Scorecard | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const start = useCallback(async (name: string) => {
     setError(null);
     try {
-      setInterview(await api.fetchInterview(QUESTION_COUNT));
+      // ?seed= pins the question set, so the same three can be rehearsed again.
+      const pinned = new URLSearchParams(window.location.search).get("seed");
+      setInterview(await api.fetchInterview(pinned === null ? undefined : Number(pinned)));
       setCandidateName(name);
+      setAnswers([]);
+      setScorecard(null);
       setScreen("interview");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load the interview.");
     }
   }, []);
 
-  const finish = useCallback(
-    async (answers: AnswerRecord[]) => {
-      setScreen("scoring");
-      try {
-        setScorecard(await api.score(candidateName, answers));
-        setScreen("report");
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Scoring failed.");
-        setScreen("interview");
-      }
-    },
-    [candidateName],
-  );
+  // The interview ends without a score; revealing it is a deliberate second step.
+  const finish = useCallback((collected: AnswerRecord[]) => {
+    setAnswers(collected);
+    setScreen("complete");
+  }, []);
+
+  const reveal = useCallback(async () => {
+    setScreen("scoring");
+    try {
+      setScorecard(await api.score(candidateName, answers));
+      setScreen("report");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Scoring failed.");
+      setScreen("complete");
+    }
+  }, [answers, candidateName]);
 
   if (screen === "setup" || !interview) {
     return <Setup onStart={start} error={error} />;
   }
+  if (screen === "complete") {
+    return <Complete count={answers.length} onReveal={reveal} error={error} />;
+  }
   if (screen === "scoring") {
-    return <Centered title="Scoring your interview" subtitle="Reading the transcript against the rubric." />;
+    return <Centered title="Scoring your interview" subtitle="Reading your answers against the rubric." />;
   }
   if (screen === "report" && scorecard) {
     return <Report scorecard={scorecard} interview={interview} onRestart={() => setScreen("setup")} />;
@@ -62,16 +71,29 @@ function Setup({ onStart, error }: { onStart: (name: string) => void; error: str
   return (
     <main className="shell shell--center">
       <div className="setup">
-        <p className="eyebrow">Interview practice</p>
+        <p className="eyebrow">Executive Leadership Principles</p>
         <h1 className="display">
-          VP of Engineering
-          <span className="display__sub">Public company panel</span>
+          VP+ Interview
+          <span className="display__sub">Three questions. One per pillar.</span>
         </h1>
         <p className="lede">
-          Two interviewers ask you {QUESTION_COUNT} questions out loud. You answer out loud. Your
-          transcript is scored against a behaviourally-anchored rubric, and you get the evidence
-          behind every score.
+          A CTO and a CEO each ask you a top-line question out loud, then probe. You answer out
+          loud. Afterwards you can reveal a scorecard that shows what you scored, and exactly what
+          would have taken each answer to an 8.
         </p>
+
+        <div className="pillars">
+          {[
+            ["Plan with Purpose", "Vision, decisions, energy"],
+            ["Pursue Excellence", "Results, courage, resilience"],
+            ["Prioritize People", "Trust, influence, growing leaders"],
+          ].map(([name, sub]) => (
+            <div className="pillar-card" key={name}>
+              <strong>{name}</strong>
+              <span>{sub}</span>
+            </div>
+          ))}
+        </div>
 
         <div className="panel-preview">
           <div className="panel-preview__seat">
@@ -103,7 +125,7 @@ function Setup({ onStart, error }: { onStart: (name: string) => void; error: str
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
-          <button className="button button--primary" type="submit">
+          <button className="button button--primary button--lg" type="submit">
             Begin interview
           </button>
         </form>
@@ -142,28 +164,26 @@ function Room({
 
   const question = interview.questions[index];
   const panelist = interview.panelists.find((p) => p.id === question.askedBy);
+  const pillar = interview.rubric.pillars.find((p) => p.id === question.pillar);
   const probe = question.probes[0];
   const isLast = index === interview.questions.length - 1;
 
-  const say = useCallback(
-    async (text: string, speaker: Panelist | undefined) => {
-      if (!speaker) return;
-      try {
-        const audio = await api.speak(text, speaker.id);
-        const url = URL.createObjectURL(audio);
-        audioRef.current?.pause();
-        const element = new Audio(url);
-        audioRef.current = element;
-        element.onended = () => URL.revokeObjectURL(url);
-        await element.play();
-        setVoiceNote(null);
-      } catch (cause) {
-        // Voice is a nicety; the interview continues in text if it fails.
-        setVoiceNote(cause instanceof Error ? cause.message : "Voice unavailable.");
-      }
-    },
-    [],
-  );
+  const say = useCallback(async (text: string, speaker: Panelist | undefined) => {
+    if (!speaker) return;
+    try {
+      const audio = await api.speak(text, speaker.id);
+      const url = URL.createObjectURL(audio);
+      audioRef.current?.pause();
+      const element = new Audio(url);
+      audioRef.current = element;
+      element.onended = () => URL.revokeObjectURL(url);
+      await element.play();
+      setVoiceNote(null);
+    } catch (cause) {
+      // Voice is a nicety; the interview continues in text if it fails.
+      setVoiceNote(cause instanceof Error ? cause.message : "Voice unavailable.");
+    }
+  }, []);
 
   // Ask each question aloud as it comes up.
   useEffect(() => {
@@ -199,10 +219,9 @@ function Room({
   );
 
   const commit = useCallback(() => {
-    const combined = [transcript, probeTranscript].filter(Boolean).join("\n\n");
     const record: AnswerRecord = {
       questionId: question.id,
-      answer: combined,
+      answer: [transcript, probeTranscript].filter(Boolean).join("\n\n"),
       turns: [
         { speaker: "panelist", speakerId: question.askedBy, text: question.text },
         { speaker: "candidate", text: transcript },
@@ -229,7 +248,6 @@ function Room({
   }, [probe, panelist, say]);
 
   const busy = stage === "transcribing";
-  const answering = stage === "answering" || stage === "asking";
   const probing = stage === "probing";
 
   return (
@@ -257,12 +275,12 @@ function Room({
             <strong>{panelist?.name}</strong>
             <span>{panelist?.role}</span>
           </div>
-          <span className={`tag tag--${question.kind}`}>{question.kind}</span>
+          <span className="tag">{pillar?.name ?? question.pillar}</span>
         </div>
 
         <p className="question">{question.text}</p>
 
-        {stage === "probing" && probe && (
+        {probing && probe && (
           <div className="probe">
             <span className="probe__label">Follow-up</span>
             <p>{probe.question}</p>
@@ -288,7 +306,7 @@ function Room({
             <div className="typing">
               <textarea
                 className="textarea"
-                rows={6}
+                rows={7}
                 autoFocus
                 placeholder="Type your answer..."
                 value={draft}
@@ -332,8 +350,11 @@ function Room({
                   Take the follow-up
                 </button>
               )}
-              <button className={`button ${probeTranscript || !probe ? "button--primary" : ""}`} onClick={commit}>
-                {isLast ? "Finish & score" : "Next question"}
+              <button
+                className={`button ${probeTranscript || !probe ? "button--primary" : ""}`}
+                onClick={commit}
+              >
+                {isLast ? "Finish interview" : "Next question"}
               </button>
               <button
                 className="button button--ghost"
@@ -358,14 +379,12 @@ function Room({
               <button className="button button--ghost" onClick={() => setTyping(true)}>
                 Type instead
               </button>
-              {(answering || probing) && (
-                <button
-                  className="button button--ghost"
-                  onClick={() => void say(probing && probe ? probe.question : question.text, panelist)}
-                >
-                  Replay
-                </button>
-              )}
+              <button
+                className="button button--ghost"
+                onClick={() => void say(probing && probe ? probe.question : question.text, panelist)}
+              >
+                Replay
+              </button>
             </div>
           )}
         </div>
@@ -397,6 +416,41 @@ function Meter({ level }: { level: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Completion — the score is revealed only on request
+// ---------------------------------------------------------------------------
+
+function Complete({
+  count,
+  onReveal,
+  error,
+}: {
+  count: number;
+  onReveal: () => void;
+  error: string | null;
+}) {
+  return (
+    <main className="shell shell--center">
+      <div className="complete">
+        <p className="eyebrow">Interview complete</p>
+        <h1 className="display">
+          That&apos;s all three.
+          <span className="display__sub">{count} answers recorded.</span>
+        </h1>
+        <p className="lede">
+          Your answers have been scored against the nine Executive Leadership Principles. The
+          scorecard also shows, for each answer, the specific changes that would have moved it to an
+          8 — and what each one is worth.
+        </p>
+        <button className="button button--primary button--lg" onClick={onReveal}>
+          See my score
+        </button>
+        {error && <p className="alert">{error}</p>}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 
@@ -409,8 +463,12 @@ function Report({
   interview: Interview;
   onRestart: () => void;
 }) {
-  const competencyName = useMemo(
-    () => new Map(interview.rubric.competencies.map((c) => [c.id, c.name])),
+  const competency = useMemo(
+    () => new Map(interview.rubric.competencies.map((c) => [c.id, c])),
+    [interview],
+  );
+  const pillarName = useMemo(
+    () => new Map(interview.rubric.pillars.map((p) => [p.id, p.name])),
     [interview],
   );
   const dimensionName = useMemo(
@@ -431,7 +489,9 @@ function Report({
             <h1 className="display display--sm">{scorecard.candidateName}</h1>
           </div>
           <div className="overall">
-            <span className="overall__value">{scorecard.overall.toFixed(1)}</span>
+            <span className={`overall__value score--${tier(scorecard.overall)}`}>
+              {scorecard.overall.toFixed(1)}
+            </span>
             <span className="overall__scale">/ 10 overall</span>
           </div>
         </header>
@@ -439,20 +499,21 @@ function Report({
         <div className="callouts">
           <div className="callout callout--good">
             <span>Strengths</span>
-            <p>{scorecard.strengths.map((id) => competencyName.get(id) ?? id).join(" · ") || "—"}</p>
+            <p>{scorecard.strengths.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}</p>
           </div>
           <div className="callout callout--warn">
             <span>Work on</span>
-            <p>{scorecard.gaps.map((id) => competencyName.get(id) ?? id).join(" · ") || "—"}</p>
+            <p>{scorecard.gaps.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}</p>
           </div>
         </div>
 
-        <h2 className="section">Competencies</h2>
+        <h2 className="section">Principles</h2>
         <div className="competencies">
           {scorecard.competencyScores.map((score) => (
             <div className="competency" key={score.competency}>
+              <p className="competency__pillar">{pillarName.get(score.pillar) ?? score.pillar}</p>
               <div className="competency__head">
-                <strong>{competencyName.get(score.competency) ?? score.competency}</strong>
+                <strong>{competency.get(score.competency)?.name ?? score.competency}</strong>
                 <span className={`score score--${tier(score.value)}`}>{score.value.toFixed(1)}</span>
               </div>
               <div className="track">
@@ -463,20 +524,88 @@ function Report({
           ))}
         </div>
 
-        <h2 className="section">Answer feedback</h2>
+        <h2 className="section">How to reach 8+</h2>
         <div className="answers">
-          {scorecard.answerScores.map((answer) => {
-            const weakest = [...answer.dimensionScores].sort((a, b) => a.value - b.value).slice(0, 3);
-            return (
-              <article className="answer" key={answer.questionId}>
-                <div className="answer__head">
-                  <span className={`score score--${tier(answer.composite)}`}>
-                    {answer.composite.toFixed(1)}
-                  </span>
-                  <p>{questionText.get(answer.questionId) ?? answer.questionId}</p>
-                </div>
-                <ul className="notes">
-                  {weakest.map((dimension) => (
+          {scorecard.guidance.map((guidance) => (
+            <article className="guide" key={guidance.questionId}>
+              <p className="guide__question">{questionText.get(guidance.questionId) ?? guidance.questionId}</p>
+
+              <div className="jump">
+                <span className={`score score--${tier(guidance.composite)}`}>
+                  {guidance.composite.toFixed(1)}
+                </span>
+                <span className="jump__arrow">→</span>
+                <span className={`score score--${tier(guidance.reachable)}`}>
+                  {guidance.reachable.toFixed(1)}
+                </span>
+                <span className="jump__label">
+                  with the {guidance.lifts.length} change{guidance.lifts.length === 1 ? "" : "s"} below
+                </span>
+              </div>
+
+              {guidance.flags.length > 0 && (
+                <ul className="flags">
+                  {guidance.flags.map((flag) => (
+                    <li key={flag}>{flag}</li>
+                  ))}
+                </ul>
+              )}
+
+              <ol className="lifts">
+                {guidance.lifts.map((lift) => (
+                  <li key={lift.dimension}>
+                    <div className="lift__head">
+                      <span className="gain">+{lift.compositeGain.toFixed(2)}</span>
+                      <span className="lift__dim">
+                        {dimensionName.get(lift.dimension) ?? lift.dimension}
+                        <em>
+                          {lift.from.toFixed(1)} → {lift.to}
+                        </em>
+                      </span>
+                    </div>
+                    <p>{lift.suggestion}</p>
+                  </li>
+                ))}
+              </ol>
+
+              <details className="drawer">
+                <summary>The interviewer&apos;s follow-ups ({guidance.probes.length})</summary>
+                <ul className="probes">
+                  {guidance.probes.map((probe) => (
+                    <li key={probe.question} className={probe.likelyUncovered ? "probes--open" : ""}>
+                      {probe.question}
+                      {probe.likelyUncovered && <em> likely not covered</em>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+
+              <details className="drawer">
+                <summary>What the interviewer is listening for</summary>
+                <ul className="signals">
+                  {guidance.listeningFor.map((signal) => (
+                    <li key={signal}>{signal}</li>
+                  ))}
+                </ul>
+              </details>
+            </article>
+          ))}
+        </div>
+
+        <h2 className="section">Answer detail</h2>
+        <div className="answers">
+          {scorecard.answerScores.map((answer) => (
+            <article className="answer" key={answer.questionId}>
+              <div className="answer__head">
+                <span className={`score score--${tier(answer.composite)}`}>
+                  {answer.composite.toFixed(1)}
+                </span>
+                <p>{questionText.get(answer.questionId) ?? answer.questionId}</p>
+              </div>
+              <ul className="notes">
+                {[...answer.dimensionScores]
+                  .sort((a, b) => a.value - b.value)
+                  .map((dimension) => (
                     <li key={dimension.dimension}>
                       <span className={`chip chip--${tier(dimension.value)}`}>
                         {dimensionName.get(dimension.dimension) ?? dimension.dimension}{" "}
@@ -485,10 +614,9 @@ function Report({
                       <span className="notes__text">{dimension.rationale}</span>
                     </li>
                   ))}
-                </ul>
-              </article>
-            );
-          })}
+              </ul>
+            </article>
+          ))}
         </div>
 
         <button className="button button--primary" onClick={onRestart}>

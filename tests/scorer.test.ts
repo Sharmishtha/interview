@@ -8,8 +8,8 @@ import {
 } from "../src/scoring/scorer.js";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { createSession, recordAnswer } from "../src/panel/session.js";
-import { questionBank, questionById, selectQuestions } from "../src/questions/bank.js";
-import { competencies } from "../src/rubric/competencies.js";
+import { PILLAR_ORDER, questionBank, questionById, selectQuestions } from "../src/questions/bank.js";
+import { competencies, competencyById, pillars } from "../src/rubric/competencies.js";
 import { dimensions } from "../src/rubric/dimensions.js";
 import type { AnswerScore, DimensionScore } from "../src/types.js";
 
@@ -37,10 +37,29 @@ describe("rubric integrity", () => {
     }
   });
 
-  it("tags every question with at least one competency and one probe", () => {
+  it("gives every question a competency, a pillar, and probes", () => {
     for (const question of questionBank) {
-      expect(question.competencies.length).toBeGreaterThan(0);
+      expect(competencies.some((c) => c.id === question.competency)).toBe(true);
+      expect(question.pillar).toBe(competencyById.get(question.competency)!.pillar);
       expect(question.probes.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("covers all nine principles with one question each", () => {
+    expect(questionBank).toHaveLength(9);
+    expect(new Set(questionBank.map((q) => q.competency)).size).toBe(9);
+  });
+
+  it("puts three competencies in each pillar", () => {
+    for (const pillar of pillars) {
+      expect(competencies.filter((c) => c.pillar === pillar.id)).toHaveLength(3);
+    }
+  });
+
+  it("carries the guide's positive and negative signals on every competency", () => {
+    for (const competency of competencies) {
+      expect(competency.positiveSignals.length).toBeGreaterThan(0);
+      expect(competency.negativeSignals.length).toBeGreaterThan(0);
     }
   });
 });
@@ -58,39 +77,49 @@ describe("compositeFor", () => {
 });
 
 describe("rollUpCompetencies", () => {
-  it("averages the answers tagged with each competency", () => {
-    // Both questions are tagged technical-judgment; only expensive-mistake is
-    // tagged judgment-self-awareness.
-    const questions = [questionById.get("architecture-bet")!, questionById.get("expensive-mistake")!];
+  it("maps each answer to the competency its question assesses", () => {
+    const questions = [questionById.get("makes-smart-decisions")!, questionById.get("be-real")!];
     const answerScores: AnswerScore[] = [
-      { questionId: "architecture-bet", dimensionScores: [], composite: 8 },
-      { questionId: "expensive-mistake", dimensionScores: [], composite: 4 },
+      { questionId: "makes-smart-decisions", dimensionScores: [], composite: 8 },
+      { questionId: "be-real", dimensionScores: [], composite: 4 },
     ];
 
     const scores = rollUpCompetencies(answerScores, questions);
 
-    expect(scores.find((s) => s.competency === "technical-judgment")!.value).toBeCloseTo(6);
-    expect(scores.find((s) => s.competency === "judgment-self-awareness")!.value).toBeCloseTo(4);
+    expect(scores.find((s) => s.competency === "makes-smart-decisions")!.value).toBeCloseTo(8);
+    expect(scores.find((s) => s.competency === "be-real")!.value).toBeCloseTo(4);
+    expect(scores.find((s) => s.competency === "be-real")!.pillar).toBe("prioritize-people");
+  });
+
+  it("averages when one competency is assessed more than once", () => {
+    const scores = rollUpCompetencies(
+      [
+        { questionId: "be-real", dimensionScores: [], composite: 8 },
+        { questionId: "be-real", dimensionScores: [], composite: 4 },
+      ],
+      [questionById.get("be-real")!],
+    );
+    expect(scores.find((s) => s.competency === "be-real")!.value).toBeCloseTo(6);
   });
 
   it("attaches the matching behavioural band descriptor", () => {
-    const questions = [questionById.get("architecture-bet")!];
+    const questions = [questionById.get("makes-smart-decisions")!];
     const scores = rollUpCompetencies(
-      [{ questionId: "architecture-bet", dimensionScores: [], composite: 9.5 }],
+      [{ questionId: "makes-smart-decisions", dimensionScores: [], composite: 9.5 }],
       questions,
     );
-    const strategic = competencies.find((c) => c.id === "technical-judgment")!;
-    expect(scores.find((s) => s.competency === "technical-judgment")!.band).toBe(
+    const strategic = competencies.find((c) => c.id === "makes-smart-decisions")!;
+    expect(scores.find((s) => s.competency === "makes-smart-decisions")!.band).toBe(
       strategic.bands.at(-1)!.descriptor,
     );
   });
 
   it("omits competencies no question assessed", () => {
     const scores = rollUpCompetencies(
-      [{ questionId: "rd-budget", dimensionScores: [], composite: 7 }],
-      [questionById.get("rd-budget")!],
+      [{ questionId: "raise-the-bar", dimensionScores: [], composite: 7 }],
+      [questionById.get("raise-the-bar")!],
     );
-    expect(scores.some((s) => s.competency === "scaling-change")).toBe(false);
+    expect(scores.some((s) => s.competency === "grow-groundbreakers")).toBe(false);
   });
 });
 
@@ -102,38 +131,41 @@ describe("overallScore", () => {
   it("renormalises weights over the competencies actually assessed", () => {
     // Two competencies whose weights do not sum to 1; equal scores must yield that score.
     const scores = overallScore([
-      { competency: "technical-judgment", value: 6, band: "", questionIds: [] },
-      { competency: "scaling-change", value: 6, band: "", questionIds: [] },
+      { competency: "makes-smart-decisions", pillar: "plan-with-purpose", value: 6, band: "", questionIds: [] },
+      { competency: "grow-groundbreakers", pillar: "prioritize-people", value: 6, band: "", questionIds: [] },
     ]);
     expect(scores).toBeCloseTo(6);
   });
 
-  it("weights the heavier competency more", () => {
-    const strategicHigh = overallScore([
-      { competency: "technical-judgment", value: 10, band: "", questionIds: [] },
-      { competency: "scaling-change", value: 0, band: "", questionIds: [] },
+  it("weights all nine principles equally, as the guide treats the pillars", () => {
+    // Swapping which competency scores high must not change the overall.
+    const oneHigh = overallScore([
+      { competency: "makes-smart-decisions", pillar: "plan-with-purpose", value: 10, band: "", questionIds: [] },
+      { competency: "grow-groundbreakers", pillar: "prioritize-people", value: 0, band: "", questionIds: [] },
     ]);
-    const changeHigh = overallScore([
-      { competency: "technical-judgment", value: 0, band: "", questionIds: [] },
-      { competency: "scaling-change", value: 10, band: "", questionIds: [] },
+    const otherHigh = overallScore([
+      { competency: "makes-smart-decisions", pillar: "plan-with-purpose", value: 0, band: "", questionIds: [] },
+      { competency: "grow-groundbreakers", pillar: "prioritize-people", value: 10, band: "", questionIds: [] },
     ]);
-    expect(strategicHigh).toBeGreaterThan(changeHigh);
+    expect(oneHigh).toBeCloseTo(otherHigh);
+    expect(oneHigh).toBeCloseTo(5);
   });
 });
 
 describe("session", () => {
   it("rejects an answer to a question not in the session", () => {
-    const session = createSession({ id: "s", candidateName: "T", questions: [questionById.get("rd-budget")!] });
+    const session = createSession({ id: "s", candidateName: "T", questions: [questionById.get("raise-the-bar")!] });
     expect(() =>
-      recordAnswer(session, { questionId: "incident", answer: "...", turns: [] }),
+      recordAnswer(session, { questionId: "lead-across", answer: "...", turns: [] }),
     ).toThrow(/not in this session/);
   });
 
-  it("selects a question set covering distinct competencies", () => {
-    const selected = selectQuestions(6);
-    expect(selected).toHaveLength(6);
-    const covered = new Set(selected.flatMap((q) => q.competencies));
-    expect(covered.size).toBeGreaterThanOrEqual(6);
+  it("selects exactly one question per pillar, as the guide's process requires", () => {
+    for (const seed of [0, 1000, 2000, Date.now()]) {
+      const selected = selectQuestions(seed);
+      expect(selected).toHaveLength(3);
+      expect(new Set(selected.map((q) => q.pillar))).toEqual(new Set(PILLAR_ORDER));
+    }
   });
 });
 
@@ -142,15 +174,15 @@ describe("buildScorecard", () => {
     let session = createSession({
       id: "s1",
       candidateName: "Practice",
-      questions: [questionById.get("architecture-bet")!, questionById.get("scaling")!],
+      questions: [questionById.get("makes-smart-decisions")!, questionById.get("grow-groundbreakers")!],
     });
     session = recordAnswer(session, {
-      questionId: "architecture-bet",
+      questionId: "makes-smart-decisions",
       answer: "I always believe in empowering my team. My philosophy is that results follow.",
       turns: [],
     });
     session = recordAnswer(session, {
-      questionId: "scaling",
+      questionId: "grow-groundbreakers",
       answer:
         "When I took over in 2019 we had 140 engineers across 6 teams and deploys took 90 minutes. I decided to split the monolith. As a result we went from 90 minutes to 11 minutes within 18 months. In hindsight I should have moved earlier.",
       turns: [],
@@ -159,8 +191,8 @@ describe("buildScorecard", () => {
     const answerScores = await scoreAnswers(session, new HeuristicEvaluator());
     const scorecard = buildScorecard(session, answerScores);
 
-    const weak = answerScores.find((a) => a.questionId === "architecture-bet")!;
-    const strong = answerScores.find((a) => a.questionId === "scaling")!;
+    const weak = answerScores.find((a) => a.questionId === "makes-smart-decisions")!;
+    const strong = answerScores.find((a) => a.questionId === "grow-groundbreakers")!;
     expect(strong.composite).toBeGreaterThan(weak.composite);
 
     expect(scorecard.overall).toBeGreaterThan(0);
@@ -171,7 +203,7 @@ describe("buildScorecard", () => {
 
   it("throws when an answer references a question outside the session", async () => {
     const session = {
-      ...createSession({ id: "s2", candidateName: "T", questions: [questionById.get("rd-budget")!] }),
+      ...createSession({ id: "s2", candidateName: "T", questions: [questionById.get("raise-the-bar")!] }),
       answers: [{ questionId: "ghost", answer: "x", turns: [] }],
     };
     await expect(scoreAnswers(session, new HeuristicEvaluator())).rejects.toThrow(
