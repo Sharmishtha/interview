@@ -1,29 +1,32 @@
-import type {
-  CandidateResponse,
-  InterviewQuestion,
-  InterviewSession,
-  Panelist,
-} from "../types.js";
+import { executivePanel } from "./panelist.js";
+import { selectQuestions } from "../questions/bank.js";
+import type { AnswerRecord, InterviewQuestion, InterviewSession, Panelist } from "../types.js";
 
 export function createSession(params: {
   id: string;
   candidateName: string;
-  panelists: Panelist[];
-  questions: InterviewQuestion[];
+  panelists?: Panelist[];
+  questions?: InterviewQuestion[];
+  questionCount?: number;
 }): InterviewSession {
   return {
-    ...params,
-    responses: [],
-    responseScores: [],
+    id: params.id,
+    candidateName: params.candidateName,
+    panelists: params.panelists ?? executivePanel,
+    questions: params.questions ?? selectQuestions(params.questionCount ?? 6),
+    answers: [],
+    startedAt: new Date().toISOString(),
   };
 }
 
-export function recordResponse(
-  session: InterviewSession,
-  response: CandidateResponse,
-): InterviewSession {
-  return {
-    ...session,
-    responses: [...session.responses, response],
-  };
+export function recordAnswer(session: InterviewSession, answer: AnswerRecord): InterviewSession {
+  if (!session.questions.some((q) => q.id === answer.questionId)) {
+    throw new Error(`Answer references a question not in this session: ${answer.questionId}`);
+  }
+  return { ...session, answers: [...session.answers, answer] };
+}
+
+/** The probes attached to a question, for the panelist to draw on mid-answer. */
+export function probesFor(session: InterviewSession, questionId: string) {
+  return session.questions.find((q) => q.id === questionId)?.probes ?? [];
 }
