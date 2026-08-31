@@ -151,26 +151,109 @@ tests/                  48 tests: rubric integrity, scoring math, evaluator disc
 
 ## Setup
 
+### Prerequisites
+
+- **Node.js 20 or newer** (`node --version`). Node 20 is required for the global `File` class the
+  transcription upload uses.
+- **An ElevenLabs API key** — optional. Without one the app still runs; see
+  [Running without a key](#running-without-a-key).
+- **A microphone** — optional. There is a **Type instead** button on every question.
+
+### 1. Clone and install
+
 ```bash
+git clone https://github.com/Sharmishtha/interview
+cd interview
 npm install
-cp .env.example .env   # add your ELEVENLABS_API_KEY
-npm run dev            # API on :3001, UI on :5173
-# ?seed=0 on the UI pins the question set so you can rehearse the same three
 ```
+
+### 2. Add your ElevenLabs key
+
+Get one from [elevenlabs.io](https://elevenlabs.io) → your profile → **API Keys**. Then:
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and fill it in — the whole file is one line:
+
+```
+ELEVENLABS_API_KEY=sk_your_key_here
+```
+
+`.env` is listed in `.gitignore`, so it is never committed. The key is read by the server only
+and is never sent to the browser: the page calls `/api/tts` and `/api/stt`, and the server makes
+the ElevenLabs calls on its behalf.
+
+### 3. Run it
+
+```bash
+npm run dev
+```
+
+That starts both processes — the API on **:3001** and the UI on **:5173**. Open:
+
+```
+http://localhost:5173
+```
+
+Use `localhost`, not your machine's LAN IP: browsers only grant microphone access on a secure
+origin, and `localhost` counts as one while `192.168.x.x` does not.
+
+### 4. Check it is working
+
+Enter a name and press **Begin interview**. You should hear Claire Whitfield read the first
+question aloud, and Ravi Menon sound different on his. If a grey notice appears under the
+buttons instead, voice is not reaching ElevenLabs — see [Troubleshooting](#troubleshooting).
+
+For a faster check that skips the UI:
+
+```bash
+curl -X POST localhost:3001/api/tts \
+  -H 'Content-Type: application/json' \
+  -d '{"text":"testing one two three","panelistId":"ceo"}' \
+  -o test.mp3
+```
+
+A playable MP3 means voice works. A file containing JSON means it failed, and the JSON says why.
+
+### Running without a key
+
+The app degrades rather than breaking. It reports that voice is unavailable, shows each question
+on screen, and you answer with **Type instead**. Everything downstream — scoring, the rubric,
+the coaching — works identically, because they run on the transcript rather than the audio.
+
+## Commands
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | API + frontend with reload |
-| `npm run build` | Type-check server, build frontend |
-| `npm start` | Serve the built app from the API on :3001 |
-| `npm run demo` | Terminal scorecard from the eval corpus |
-| `npm run eval` | Run the evaluation set |
-| `npm test` | Full test suite |
+| `npm run dev` | API + frontend with reload — the one you want day to day |
+| `npm run build` | Type-check the server, build the frontend |
+| `npm start` | Serve the built app from the API alone on :3001 |
+| `npm run demo` | Print a scorecard in the terminal, no browser or key needed |
+| `npm run eval` | Run the evaluation set against the rubric |
+| `npm test` | Full test suite (56 tests) |
 | `npm run lint` / `npm run format` | Lint / format |
 
-Without an `ELEVENLABS_API_KEY` the app still works: it reports that voice is unavailable and
-falls back to reading questions on screen with a **Type instead** option, which is also the
-path to use when no microphone is available.
+Two useful details:
+
+- **`?seed=0`** — `http://localhost:5173/?seed=0` pins the question set, so you can rehearse the
+  same three questions repeatedly and watch your scores move. Omit it and you get a rotating set.
+- **`PORT=4000 npm run dev:api`** — moves the API if :3001 is taken. Update the `proxy` target in
+  `web/vite.config.ts` to match.
+
+## Troubleshooting
+
+| What you see | What it means |
+| --- | --- |
+| `ELEVENLABS_API_KEY is not set` | No `.env`, or it is not in the repo root, or the server was started before you created it. Fix it and restart. |
+| `Status code: 401` / `invalid_api_key` | The key is wrong, revoked, or has trailing whitespace. Check for a stray quote — the value needs no quotes. |
+| `Host not in allowlist` or a proxy 403 | Your network is blocking `api.elevenlabs.io`, usually a corporate proxy or VPN. The key is fine; the request never left your machine. |
+| `Status code: 429` | ElevenLabs rate limit or an exhausted character quota on your plan. |
+| Question text appears but no audio | Browser autoplay blocking. Press **Replay**; a click counts as the gesture browsers require. |
+| **Record answer** is greyed out | The browser exposes no recorder. Use **Type instead**, and check you are on `localhost` rather than a LAN IP. |
+| Microphone permission never prompts | Same secure-origin rule — use `http://localhost:5173`. |
+| `EADDRINUSE :3001` | Something already holds the port. `PORT=4000 npm run dev:api`, or stop the other process. |
 
 ## Roadmap
 
