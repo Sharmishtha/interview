@@ -167,6 +167,24 @@ describe("session", () => {
       expect(new Set(selected.map((q) => q.pillar))).toEqual(new Set(PILLAR_ORDER));
     }
   });
+
+  it("can reach every combination of questions across seeds", () => {
+    // Indexing all three pillars with the same value made the picks move in
+    // lockstep, leaving only 3 of the 27 sets reachable.
+    const combinations = new Set<string>();
+    for (let seed = 0; seed < 1_000_000; seed += 1000) {
+      combinations.add(
+        selectQuestions(seed)
+          .map((q) => q.id)
+          .join("+"),
+      );
+    }
+    expect(combinations.size).toBe(27);
+  });
+
+  it("returns the same questions for the same seed", () => {
+    expect(selectQuestions(4242).map((q) => q.id)).toEqual(selectQuestions(4242).map((q) => q.id));
+  });
 });
 
 describe("buildScorecard", () => {

@@ -202,10 +202,22 @@ export const PILLAR_ORDER: PillarId[] = [
  * rotates by default so repeat sessions do not always draw the same three.
  */
 export function selectQuestions(seed = Date.now()): InterviewQuestion[] {
-  return PILLAR_ORDER.map((pillar) => {
+  return PILLAR_ORDER.map((pillar, index) => {
     const options = questionBank.filter((q) => q.pillar === pillar);
-    return options[Math.abs(Math.floor(seed / 1000)) % options.length];
+    return options[pick(seed, index) % options.length];
   });
+}
+
+/**
+ * Mixes the pillar index into the seed so the three choices are independent.
+ * Indexing every pillar with the same value made the picks move in lockstep and
+ * left only three of the twenty-seven possible interviews reachable.
+ */
+function pick(seed: number, salt: number): number {
+  let hash = Math.abs(Math.floor(seed / 1000)) + salt * 0x9e3779b1;
+  hash = Math.imul(hash ^ (hash >>> 15), 0x85ebca6b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+  return Math.abs(hash ^ (hash >>> 16));
 }
 
 /** Deterministic selection, for tests and reproducible sessions. */
