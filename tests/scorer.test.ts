@@ -59,38 +59,38 @@ describe("compositeFor", () => {
 
 describe("rollUpCompetencies", () => {
   it("averages the answers tagged with each competency", () => {
-    const questions = [questionById.get("strategic-bet")!, questionById.get("pnl")!];
+    // Both questions are tagged technical-judgment; only expensive-mistake is
+    // tagged judgment-self-awareness.
+    const questions = [questionById.get("architecture-bet")!, questionById.get("expensive-mistake")!];
     const answerScores: AnswerScore[] = [
-      { questionId: "strategic-bet", dimensionScores: [], composite: 8 },
-      { questionId: "pnl", dimensionScores: [], composite: 4 },
+      { questionId: "architecture-bet", dimensionScores: [], composite: 8 },
+      { questionId: "expensive-mistake", dimensionScores: [], composite: 4 },
     ];
 
     const scores = rollUpCompetencies(answerScores, questions);
-    const acumen = scores.find((s) => s.competency === "business-acumen")!;
 
-    // business-acumen is tagged on both questions, so it is the mean of 8 and 4.
-    expect(acumen.value).toBeCloseTo(6);
-    expect(scores.find((s) => s.competency === "strategic-thinking")!.value).toBeCloseTo(8);
+    expect(scores.find((s) => s.competency === "technical-judgment")!.value).toBeCloseTo(6);
+    expect(scores.find((s) => s.competency === "judgment-self-awareness")!.value).toBeCloseTo(4);
   });
 
   it("attaches the matching behavioural band descriptor", () => {
-    const questions = [questionById.get("strategic-bet")!];
+    const questions = [questionById.get("architecture-bet")!];
     const scores = rollUpCompetencies(
-      [{ questionId: "strategic-bet", dimensionScores: [], composite: 9.5 }],
+      [{ questionId: "architecture-bet", dimensionScores: [], composite: 9.5 }],
       questions,
     );
-    const strategic = competencies.find((c) => c.id === "strategic-thinking")!;
-    expect(scores.find((s) => s.competency === "strategic-thinking")!.band).toBe(
+    const strategic = competencies.find((c) => c.id === "technical-judgment")!;
+    expect(scores.find((s) => s.competency === "technical-judgment")!.band).toBe(
       strategic.bands.at(-1)!.descriptor,
     );
   });
 
   it("omits competencies no question assessed", () => {
     const scores = rollUpCompetencies(
-      [{ questionId: "pnl", dimensionScores: [], composite: 7 }],
-      [questionById.get("pnl")!],
+      [{ questionId: "rd-budget", dimensionScores: [], composite: 7 }],
+      [questionById.get("rd-budget")!],
     );
-    expect(scores.some((s) => s.competency === "change-leadership")).toBe(false);
+    expect(scores.some((s) => s.competency === "scaling-change")).toBe(false);
   });
 });
 
@@ -102,20 +102,20 @@ describe("overallScore", () => {
   it("renormalises weights over the competencies actually assessed", () => {
     // Two competencies whose weights do not sum to 1; equal scores must yield that score.
     const scores = overallScore([
-      { competency: "strategic-thinking", value: 6, band: "", questionIds: [] },
-      { competency: "change-leadership", value: 6, band: "", questionIds: [] },
+      { competency: "technical-judgment", value: 6, band: "", questionIds: [] },
+      { competency: "scaling-change", value: 6, band: "", questionIds: [] },
     ]);
     expect(scores).toBeCloseTo(6);
   });
 
   it("weights the heavier competency more", () => {
     const strategicHigh = overallScore([
-      { competency: "strategic-thinking", value: 10, band: "", questionIds: [] },
-      { competency: "change-leadership", value: 0, band: "", questionIds: [] },
+      { competency: "technical-judgment", value: 10, band: "", questionIds: [] },
+      { competency: "scaling-change", value: 0, band: "", questionIds: [] },
     ]);
     const changeHigh = overallScore([
-      { competency: "strategic-thinking", value: 0, band: "", questionIds: [] },
-      { competency: "change-leadership", value: 10, band: "", questionIds: [] },
+      { competency: "technical-judgment", value: 0, band: "", questionIds: [] },
+      { competency: "scaling-change", value: 10, band: "", questionIds: [] },
     ]);
     expect(strategicHigh).toBeGreaterThan(changeHigh);
   });
@@ -123,9 +123,9 @@ describe("overallScore", () => {
 
 describe("session", () => {
   it("rejects an answer to a question not in the session", () => {
-    const session = createSession({ id: "s", candidateName: "T", questions: [questionById.get("pnl")!] });
+    const session = createSession({ id: "s", candidateName: "T", questions: [questionById.get("rd-budget")!] });
     expect(() =>
-      recordAnswer(session, { questionId: "crisis", answer: "...", turns: [] }),
+      recordAnswer(session, { questionId: "incident", answer: "...", turns: [] }),
     ).toThrow(/not in this session/);
   });
 
@@ -142,25 +142,25 @@ describe("buildScorecard", () => {
     let session = createSession({
       id: "s1",
       candidateName: "Practice",
-      questions: [questionById.get("strategic-bet")!, questionById.get("transformation")!],
+      questions: [questionById.get("architecture-bet")!, questionById.get("scaling")!],
     });
     session = recordAnswer(session, {
-      questionId: "strategic-bet",
+      questionId: "architecture-bet",
       answer: "I always believe in empowering my team. My philosophy is that results follow.",
       turns: [],
     });
     session = recordAnswer(session, {
-      questionId: "transformation",
+      questionId: "scaling",
       answer:
-        "When I took over in 2019 we ran a 4% margin on $180 million with a team of 240 people. I decided to cut a $30 million line. As a result we went from 4% to 11% within 18 months. In hindsight I should have moved earlier.",
+        "When I took over in 2019 we had 140 engineers across 6 teams and deploys took 90 minutes. I decided to split the monolith. As a result we went from 90 minutes to 11 minutes within 18 months. In hindsight I should have moved earlier.",
       turns: [],
     });
 
     const answerScores = await scoreAnswers(session, new HeuristicEvaluator());
     const scorecard = buildScorecard(session, answerScores);
 
-    const weak = answerScores.find((a) => a.questionId === "strategic-bet")!;
-    const strong = answerScores.find((a) => a.questionId === "transformation")!;
+    const weak = answerScores.find((a) => a.questionId === "architecture-bet")!;
+    const strong = answerScores.find((a) => a.questionId === "scaling")!;
     expect(strong.composite).toBeGreaterThan(weak.composite);
 
     expect(scorecard.overall).toBeGreaterThan(0);
@@ -171,7 +171,7 @@ describe("buildScorecard", () => {
 
   it("throws when an answer references a question outside the session", async () => {
     const session = {
-      ...createSession({ id: "s2", candidateName: "T", questions: [questionById.get("pnl")!] }),
+      ...createSession({ id: "s2", candidateName: "T", questions: [questionById.get("rd-budget")!] }),
       answers: [{ questionId: "ghost", answer: "x", turns: [] }],
     };
     await expect(scoreAnswers(session, new HeuristicEvaluator())).rejects.toThrow(

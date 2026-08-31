@@ -2,13 +2,20 @@
 // Rubric
 // ---------------------------------------------------------------------------
 
+/**
+ * Competencies for a VP of Engineering at a publicly traded company. Several are
+ * deliberately public-company specific: delivery predictability matters because
+ * dates get tied to guidance, and R&D efficiency matters because R&D as a
+ * percentage of revenue is a number the street watches.
+ */
 export type CompetencyId =
-  | "strategic-thinking"
-  | "leadership-talent"
-  | "business-acumen"
-  | "execution-rigor"
-  | "stakeholder-influence"
-  | "change-leadership"
+  | "technical-judgment"
+  | "org-design-talent"
+  | "delivery-predictability"
+  | "reliability-quality-risk"
+  | "rd-efficiency"
+  | "cross-functional-influence"
+  | "scaling-change"
   | "judgment-self-awareness";
 
 /** A behaviourally-anchored band: what a score in this range actually looks like. */

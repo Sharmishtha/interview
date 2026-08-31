@@ -4,7 +4,7 @@ import { questionById } from "../src/questions/bank.js";
 import type { DimensionId, DimensionScore } from "../src/types.js";
 
 const evaluator = new HeuristicEvaluator();
-const question = questionById.get("strategic-bet")!;
+const question = questionById.get("architecture-bet")!;
 
 function valueOf(scores: DimensionScore[], dimension: DimensionId): number {
   return scores.find((s) => s.dimension === dimension)!.value;

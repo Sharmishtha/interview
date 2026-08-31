@@ -5,38 +5,28 @@ export function createPanelist(params: Panelist): Panelist {
 }
 
 /**
- * A four-person executive panel. Each seat pushes on a different axis, which is
- * what makes the transcript cover the rubric rather than circling one topic.
+ * The two seats a VP of Engineering candidate actually faces at a public company:
+ * the CTO, who will be their manager and probes technical depth, and the CEO, who
+ * cares about predictability, spend, and whether this person can face the board.
+ *
  * Voice IDs are ElevenLabs stock voices; swap them for your own.
  */
 export const executivePanel: Panelist[] = [
   createPanelist({
-    id: "board-chair",
-    name: "Eleanor Vance",
-    role: "Board Chair",
-    focus: "Strategic bets, capital allocation, and whether the candidate can be trusted with the mandate.",
-    voiceId: "21m00Tcm4TlvDq8ikWAM",
-  }),
-  createPanelist({
-    id: "ceo",
-    name: "Marcus Hale",
-    role: "Chief Executive Officer",
-    focus: "Execution rigor, operating cadence, and how the candidate handles being wrong.",
+    id: "cto",
+    name: "Ravi Menon",
+    role: "Chief Technology Officer",
+    focus:
+      "Architecture and build-versus-buy judgment, reliability and incident ownership, tech debt, org design, and whether the candidate is still trying to be the smartest engineer in the room.",
     voiceId: "pNInz6obpgDQGcFmaJgB",
   }),
   createPanelist({
-    id: "chro",
-    name: "Priya Raman",
-    role: "Chief People Officer",
-    focus: "Team building, hard people calls, succession, and self-awareness.",
+    id: "ceo",
+    name: "Claire Whitfield",
+    role: "Chief Executive Officer",
+    focus:
+      "Hitting committed dates when guidance depends on them, R&D spend and efficiency, conflict with product and sales, and how this person communicates technical risk to a board.",
     voiceId: "EXAVITQu4vr4xnSDxMaL",
-  }),
-  createPanelist({
-    id: "cfo",
-    name: "David Okonjo",
-    role: "Chief Financial Officer",
-    focus: "P&L ownership, unit economics, and whether the numbers hold up under pressure.",
-    voiceId: "TxGEqnHWrfWFTfGW9XjX",
   }),
 ];
 

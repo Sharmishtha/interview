@@ -22,14 +22,19 @@ const METRIC_PATTERNS = [
   /\d[\d,.]*\s?%/g,
   /\b\d+(?:\.\d+)?\s?x\b/gi,
   /\b\d[\d,.]*\s?(?:bps|basis points)\b/gi,
+  // Engineering outcomes are usually stated in time and count units, not currency.
+  /\bfrom \d[\d,.]*[^.]{0,24}?\bto \d[\d,.]*/gi,
+  /\b\d[\d,.]*\s?(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\b/gi,
+  /\b\d[\d,.]*\s?(?:million|billion|thousand)\b/gi,
+  /\b\d[\d,.]*\s?(?:engineer[- ]months?|incidents?|sev\s?\d|outages?|deploys?)\b/gi,
 ];
 
 const SCALE_PATTERNS = [
   /\bteam of \d[\d,]*/gi,
-  /\b\d[\d,]*\s?(?:people|employees|engineers|reports|headcount|staff)\b/gi,
-  /\$\s?\d[\d,.]*\s?(?:k|m|bn?|million|billion)\b/gi,
-  /\bP&L\b/gi,
-  /\b(?:ARR|EBITDA|run[- ]rate)\b/gi,
+  /\b\d[\d,.]*\s?(?:million|billion|k|m)?\s?(?:people|employees|engineers|developers|reports|headcount|staff|users|customers|actives)\b/gi,
+  /\$\s?\d[\d,.]*\s?(?:k|m|bn?|million|billion)?\b/gi,
+  /\b\d[\d,.]*\s?(?:million|billion)\b/gi,
+  /\b(?:P&L|ARR|EBITDA|MAU|DAU|run[- ]rate)\b/gi,
 ];
 
 const PLATITUDE_PATTERNS = [
@@ -142,6 +147,17 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function plural(count: number): string {
+  return count === 1 ? "" : "s";
+}
+
+/** "a", "a and b", "a, b, and c" */
+function list(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
 function score(
   dimension: DimensionId,
   value: number,
@@ -183,10 +199,15 @@ export class HeuristicEvaluator implements Evaluator {
     const value =
       3.5 + Math.min(concrete.length, 4) * 0.9 + Math.min(proper.length, 4) * 0.7 - platitudes.length * 1.8;
 
+    const anchors = [
+      concrete.length ? `${concrete.length} time/place marker${plural(concrete.length)}` : null,
+      proper.length ? `${proper.length} named entit${proper.length === 1 ? "y" : "ies"}` : null,
+    ].filter(Boolean);
+
     const rationale = platitudes.length
-      ? `${platitudes.length} general-philosophy phrase(s) instead of a named situation, e.g. "${platitudes[0].text}".`
-      : concrete.length || proper.length
-        ? `Anchored in specifics: ${concrete.length} time/place marker(s), ${proper.length} named entit(ies).`
+      ? `${platitudes.length} general-philosophy phrase${plural(platitudes.length)} instead of a named situation, e.g. "${platitudes[0].text}".`
+      : anchors.length
+        ? `Anchored in specifics: ${list(anchors as string[])}.`
         : "No dates, names, or concrete situations to anchor the story.";
 
     return score("specificity", value, rationale, [...concrete, ...platitudes]);
@@ -279,11 +300,11 @@ export class HeuristicEvaluator implements Evaluator {
       situation.length ? null : "situation",
       action.length ? null : "action",
       result.length ? null : "result",
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
 
     const rationale =
       (missing.length
-        ? `Missing ${missing.join(" and ")} in the narrative arc.`
+        ? `Missing ${list(missing)} in the narrative arc.`
         : "Complete situation - action - result arc.") + note;
 
     return score("structure", value, rationale, [...situation, ...action, ...result]);
