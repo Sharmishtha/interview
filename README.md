@@ -144,9 +144,13 @@ src/
   eval/                 labelled corpus + harness + CLI runner
   tts/ stt/             ElevenLabs speech synthesis and Scribe transcription
   report/render.ts      terminal scorecard
-server/index.ts         Express API: /api/interview, /api/tts, /api/stt, /api/score
+server/
+  app.ts                Hono API: /api/interview, /api/tts, /api/stt, /api/score
+  node.ts               Node adapter for local dev, also serves web/dist
+worker/index.ts         Cloudflare Worker adapter
+wrangler.toml           Worker + static asset config
 web/                    Vite + React frontend
-tests/                  48 tests: rubric integrity, scoring math, evaluator discrimination, eval corpus
+tests/                  58 tests: rubric, scoring math, evaluator, coaching, voice wrappers, eval corpus
 ```
 
 ## Setup
@@ -230,9 +234,11 @@ the coaching — works identically, because they run on the transcript rather th
 | `npm run dev` | API + frontend with reload — the one you want day to day |
 | `npm run build` | Type-check the server, build the frontend |
 | `npm start` | Serve the built app from the API alone on :3001 |
+| `npm run deploy` | Build, then `wrangler deploy` to Cloudflare |
+| `npm run cf:dev` | Run the Worker locally under workerd |
 | `npm run demo` | Print a scorecard in the terminal, no browser or key needed |
 | `npm run eval` | Run the evaluation set against the rubric |
-| `npm test` | Full test suite (56 tests) |
+| `npm test` | Full test suite (58 tests) |
 | `npm run lint` / `npm run format` | Lint / format |
 
 Two useful details:
@@ -241,6 +247,53 @@ Two useful details:
   same three questions repeatedly and watch your scores move. Omit it and you get a rotating set.
 - **`PORT=4000 npm run dev:api`** — moves the API if :3001 is taken. Update the `proxy` target in
   `web/vite.config.ts` to match.
+
+## Deploying to Cloudflare
+
+The API is written with [Hono](https://hono.dev) and runs unchanged in both places: under
+Node locally (`server/node.ts`) and as a Cloudflare Worker (`worker/index.ts`). There is one
+set of routes in `server/app.ts`, so the two cannot drift.
+
+```bash
+npx wrangler login
+npx wrangler secret put ELEVENLABS_API_KEY    # paste the key when prompted
+npm run deploy                                # builds, then wrangler deploy
+```
+
+`wrangler.toml` serves `web/dist` through the `[assets]` binding, so Cloudflare returns the
+frontend directly and the Worker runs only for `/api/*`. `npm run cf:dev` runs the Worker
+locally under workerd if you want to check it before shipping.
+
+The key is a Wrangler **secret**, never a `[vars]` entry and never in the repo — `.env` and
+`dotenv` do not exist on Workers.
+
+### Lock it down before you share the URL
+
+**This matters more than the deploy.** A public URL backed by your key means anyone who finds
+it spends your ElevenLabs quota: every question asked is a TTS call, every answer a Scribe
+call. Nothing in the app currently stands between a stranger and your balance.
+
+For a personal rehearsal tool, [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/)
+is the right control — it gates the whole app at the edge, needs no code, and takes minutes.
+
+**Check this prerequisite first:** Access policies apply to hostnames in a zone *you* have added
+to Cloudflare. A `*.workers.dev` URL sits in Cloudflare's own zone, so **you cannot put Access in
+front of it**. You need a domain on your account, with the Worker bound to it as a custom domain.
+If you do not have one, either add a domain or keep the deployment private another way.
+
+Once the Worker answers on your own hostname:
+
+1. Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application**
+2. Choose **Self-hosted**, and enter that hostname
+3. Add a policy — action **Allow**, include **Emails** → your own address
+4. Save
+
+Visitors then get a one-time PIN by email before the app loads, and unauthenticated requests
+never reach the Worker, so they cannot spend your quota.
+
+If you would rather not use a domain, the alternatives are a rate limit in front of `/api/tts`
+and `/api/stt`, or requiring a shared secret header the frontend sends — both are code changes
+this app does not have yet.
 
 ## Troubleshooting
 

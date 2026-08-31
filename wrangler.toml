@@ -1,0 +1,13 @@
+name = "interview"
+main = "worker/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# The built frontend. Cloudflare serves these directly; the Worker runs only for
+# paths that do not match a file, which is what sends /api/* to the app.
+[assets]
+directory = "./web/dist"
+not_found_handling = "single-page-application"
+
+# ELEVENLABS_API_KEY is NOT set here - it is a secret:
+#   npx wrangler secret put ELEVENLABS_API_KEY

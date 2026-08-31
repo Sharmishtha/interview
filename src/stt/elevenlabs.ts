@@ -1,13 +1,18 @@
-import { getClient } from "../tts/elevenlabs.js";
+import { clientFor } from "../tts/elevenlabs.js";
 
 /**
  * Transcribes a recorded answer with ElevenLabs Scribe.
  *
  * The convert response is a union covering single-channel, multichannel, and
- * webhook shapes; only the single-channel one carries `text` directly.
+ * webhook shapes; only the single-channel one carries `text` directly. Anything
+ * else is an error rather than an empty transcript, so a failed transcription
+ * never scores as a silent answer.
  */
 export async function transcribe(
-  audio: Buffer,
+  apiKey: string,
+  // Pinned to a plain ArrayBuffer so the bytes satisfy BlobPart: a SharedArrayBuffer
+  // cannot back a File.
+  audio: Uint8Array<ArrayBuffer>,
   contentType = "audio/webm",
 ): Promise<{ text: string; languageCode?: string }> {
   const extension = contentType.includes("mp4")
@@ -18,9 +23,9 @@ export async function transcribe(
         ? "wav"
         : "webm";
 
-  const file = new File([new Uint8Array(audio)], `answer.${extension}`, { type: contentType });
+  const file = new File([audio], `answer.${extension}`, { type: contentType });
 
-  const response = await getClient().speechToText.convert({
+  const response = await clientFor(apiKey).speechToText.convert({
     file,
     modelId: "scribe_v2",
     tagAudioEvents: false,
