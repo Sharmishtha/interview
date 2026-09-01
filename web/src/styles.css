@@ -850,3 +850,30 @@ body {
   font-size: 11px;
   margin-left: 6px;
 }
+
+/* --- answer playback ----------------------------------------------------- */
+
+.playback {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.playback__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.playback__audio {
+  height: 34px;
+  flex: 1 1 260px;
+  min-width: 200px;
+  filter: invert(1) hue-rotate(180deg) contrast(0.9);
+}

@@ -97,8 +97,27 @@ describe("speech to text", () => {
     await expect(transcribe(KEY, bytes([1]))).rejects.toThrow(/no text/i);
   });
 
+  it.each([[""], ["   "], ["\n\t "]])(
+    "rejects an empty transcript (%j) instead of passing it on",
+    async (text) => {
+      // Scribe returns "" for silence. Passing that through renders as nothing at
+      // all, which reads as the app hanging rather than a failed recording.
+      convertStt.mockResolvedValue({ text });
+      const { transcribe } = await import("../src/stt/elevenlabs.js");
+
+      await expect(transcribe(KEY, bytes([1]))).rejects.toThrow(/no speech was detected/i);
+    },
+  );
+
+  it("keeps a transcript that only looks sparse", async () => {
+    convertStt.mockResolvedValue({ text: "Yes." });
+    const { transcribe } = await import("../src/stt/elevenlabs.js");
+
+    expect((await transcribe(KEY, bytes([1]))).text).toBe("Yes.");
+  });
+
   it("names the uploaded file for the container the browser recorded", async () => {
-    convertStt.mockResolvedValue({ text: "" });
+    convertStt.mockResolvedValue({ text: "an answer" });
     const { transcribe } = await import("../src/stt/elevenlabs.js");
 
     for (const [contentType, extension] of [
@@ -116,7 +135,7 @@ describe("speech to text", () => {
   });
 
   it("sends the audio bytes through intact", async () => {
-    convertStt.mockResolvedValue({ text: "" });
+    convertStt.mockResolvedValue({ text: "an answer" });
     const { transcribe } = await import("../src/stt/elevenlabs.js");
 
     await transcribe(KEY, bytes([9, 8, 7]));

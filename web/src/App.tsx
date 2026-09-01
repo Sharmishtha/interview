@@ -158,6 +158,10 @@ function Room({
   const [draft, setDraft] = useState("");
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Object URLs for playing your own recording back. Revoked when replaced so a
+  // long session does not accumulate blobs.
+  const [answerAudio, setAnswerAudio] = useState<string | null>(null);
+  const [probeAudio, setProbeAudio] = useState<string | null>(null);
 
   const recorder = useRecorder();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -185,12 +189,35 @@ function Room({
     }
   }, []);
 
+  const keepAudio = useCallback((blob: Blob, target: "answer" | "probe") => {
+    const url = URL.createObjectURL(blob);
+    if (target === "probe") {
+      setProbeAudio((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return url;
+      });
+    } else {
+      setAnswerAudio((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return url;
+      });
+    }
+  }, []);
+
   // Ask each question aloud as it comes up.
   useEffect(() => {
     setStage("asking");
     setTranscript("");
     setProbeTranscript("");
     setDraft("");
+    setAnswerAudio((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return null;
+    });
+    setProbeAudio((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      return null;
+    });
     void say(question.text, panelist).finally(() => setStage("answering"));
     return () => audioRef.current?.pause();
   }, [question.id]);
@@ -199,7 +226,9 @@ function Room({
     async (target: "answer" | "probe") => {
       const blob = await recorder.stop();
       if (!blob || blob.size === 0) {
-        setNotice("No audio captured. Try again, or switch to typing.");
+        setNotice(
+          "That recording came through empty - your microphone may be muted or blocked. Try again, or type your answer instead.",
+        );
         setStage(target === "probe" ? "probing" : "answering");
         return;
       }
@@ -207,15 +236,25 @@ function Room({
       setStage("transcribing");
       try {
         const text = await api.transcribe(blob);
+        if (!text.trim()) {
+          // Belt and braces: the server already rejects an empty transcript, but
+          // an empty string here would render as nothing and read as a hang.
+          throw new Error(
+            "We could not hear anything in that recording. Check your microphone is not muted and try again, or type your answer instead.",
+          );
+        }
         if (target === "probe") setProbeTranscript(text);
         else setTranscript(text);
+        // Only kept once transcription succeeded, so playback never appears
+        // beside an answer that did not register.
+        keepAudio(blob, target);
         setStage("review");
       } catch (cause) {
         setNotice(cause instanceof Error ? cause.message : "Transcription failed.");
         setStage(target === "probe" ? "probing" : "answering");
       }
     },
-    [recorder],
+    [keepAudio, recorder],
   );
 
   const commit = useCallback(() => {
@@ -291,6 +330,7 @@ function Room({
           <div className="transcript">
             <span className="transcript__label">Your answer</span>
             <p>{transcript}</p>
+            {answerAudio && <Playback src={answerAudio} />}
           </div>
         )}
 
@@ -298,6 +338,7 @@ function Room({
           <div className="transcript">
             <span className="transcript__label">Your follow-up</span>
             <p>{probeTranscript}</p>
+            {probeAudio && <Playback src={probeAudio} />}
           </div>
         )}
 
@@ -359,8 +400,19 @@ function Room({
               <button
                 className="button button--ghost"
                 onClick={() => {
-                  if (probeTranscript) setProbeTranscript("");
-                  else setTranscript("");
+                  if (probeTranscript) {
+                    setProbeTranscript("");
+                    setProbeAudio((previous) => {
+                      if (previous) URL.revokeObjectURL(previous);
+                      return null;
+                    });
+                  } else {
+                    setTranscript("");
+                    setAnswerAudio((previous) => {
+                      if (previous) URL.revokeObjectURL(previous);
+                      return null;
+                    });
+                  }
                   setStage(probeTranscript ? "probing" : "answering");
                 }}
               >
@@ -372,7 +424,10 @@ function Room({
               <button
                 className="button button--record"
                 disabled={!recorder.supported}
-                onClick={() => void recorder.start()}
+                onClick={() => {
+                  setNotice(null);
+                  void recorder.start();
+                }}
               >
                 <span className="dot" /> {probing ? "Answer the follow-up" : "Record answer"}
               </button>
@@ -389,11 +444,30 @@ function Room({
           )}
         </div>
 
-        {(voiceNote || recorder.error || notice || error) && (
-          <p className="alert alert--soft">{voiceNote ?? recorder.error ?? notice ?? error}</p>
+        {/* A problem that stops you progressing outranks a note about voice
+            playback, which is only a nicety. Both can be true at once. */}
+        {(notice || recorder.error || error) && (
+          <p className="alert" role="alert">
+            {notice ?? recorder.error ?? error}
+          </p>
         )}
+        {voiceNote && <p className="alert alert--soft">{voiceNote}</p>}
       </section>
     </main>
+  );
+}
+
+/**
+ * Plays your own recording back. Hearing yourself is often a sharper coaching
+ * signal than the score: pace, filler words and rambling are obvious out loud
+ * and invisible in a transcript.
+ */
+function Playback({ src }: { src: string }) {
+  return (
+    <div className="playback">
+      <span className="playback__label">Hear it back</span>
+      <audio className="playback__audio" controls preload="metadata" src={src} />
+    </div>
   );
 }
 

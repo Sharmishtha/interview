@@ -35,6 +35,15 @@ export async function transcribe(
     throw new Error("Transcription returned no text for this audio.");
   }
 
+  // Scribe answers with an empty string for silence or audio it cannot use. That
+  // is a failed recording, not an empty answer, and saying so beats handing the
+  // caller "" - which renders as nothing at all and looks like the app hung.
+  if (!response.text.trim()) {
+    throw new Error(
+      "No speech was detected in that recording. Check your microphone and try again, or type your answer instead.",
+    );
+  }
+
   return {
     text: response.text,
     languageCode: "languageCode" in response ? response.languageCode : undefined,
