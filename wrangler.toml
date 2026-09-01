@@ -3,11 +3,14 @@ main = "worker/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# The built frontend. Cloudflare serves these directly; the Worker runs only for
-# paths that do not match a file, which is what sends /api/* to the app.
+# The built frontend. run_worker_first lets the password gate cover the page
+# itself; without it Cloudflare would serve the HTML before the Worker runs.
 [assets]
 directory = "./web/dist"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = true
 
-# ELEVENLABS_API_KEY is NOT set here - it is a secret:
+# Neither secret belongs here. Set them with:
 #   npx wrangler secret put ELEVENLABS_API_KEY
+#   npx wrangler secret put APP_PASSWORD

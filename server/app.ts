@@ -12,6 +12,10 @@ import type { AnswerRecord, InterviewSession } from "../src/types.js";
 
 export interface Env {
   ELEVENLABS_API_KEY?: string;
+  /** When set, the whole app sits behind a password. See server/gate.ts. */
+  APP_PASSWORD?: string;
+  /** Cloudflare static assets binding. Absent under Node. */
+  ASSETS?: { fetch: (request: Request) => Promise<Response> };
 }
 
 type Ctx = Context<{ Bindings: Env }>;

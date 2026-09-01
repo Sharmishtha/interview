@@ -187,6 +187,7 @@ npm run dev                                     # API on :3001, UI on :5173
 # 5. Deploy (a second terminal, same folder)
 npx wrangler login                              # opens a browser, click Allow
 npx wrangler secret put ELEVENLABS_API_KEY      # paste the same key
+npx wrangler secret put APP_PASSWORD            # gates the deployed app
 npm run deploy                                  # prints your live URL
 ```
 
@@ -322,11 +323,29 @@ The key is a Wrangler **secret**, never a `[vars]` entry and never in the repo �
 ### Lock it down before you share the URL
 
 **This matters more than the deploy.** A public URL backed by your key means anyone who finds
-it spends your ElevenLabs quota: every question asked is a TTS call, every answer a Scribe
-call. Nothing in the app currently stands between a stranger and your balance.
+it spends your ElevenLabs quota: every question asked is a TTS call, every answer a Scribe call.
 
-For a personal rehearsal tool, [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/)
-is the right control — it gates the whole app at the edge, needs no code, and takes minutes.
+**Password gate (built in).** Set one secret and the whole app sits behind a browser password
+prompt:
+
+```bash
+npx wrangler secret put APP_PASSWORD
+npm run deploy
+```
+
+Any username works - only the password is checked, so there is a single thing to share. The
+Worker runs ahead of the static assets (`run_worker_first` in `wrangler.toml`), so the prompt
+appears before the page loads rather than only blocking the API. Leave `APP_PASSWORD` unset and
+the gate is inert, which is what keeps local development free of prompts; add `APP_PASSWORD=...`
+to `.env` to gate locally too.
+
+This is a stopgap, and an honest one: Basic Auth over HTTPS keeps strangers off a personal tool,
+but it is a single shared password with no per-person revocation and no audit trail. For
+anything beyond that, use Access.
+
+**Cloudflare Access (better, needs a domain).**
+[Access](https://developers.cloudflare.com/cloudflare-one/applications/) gates the app at the
+edge with real identity - per-person email policies, revocation, and logs - and needs no code.
 
 **Check this prerequisite first:** Access policies apply to hostnames in a zone *you* have added
 to Cloudflare. A `*.workers.dev` URL sits in Cloudflare's own zone, so **you cannot put Access in
@@ -343,9 +362,7 @@ Once the Worker answers on your own hostname:
 Visitors then get a one-time PIN by email before the app loads, and unauthenticated requests
 never reach the Worker, so they cannot spend your quota.
 
-If you would rather not use a domain, the alternatives are a rate limit in front of `/api/tts`
-and `/api/stt`, or requiring a shared secret header the frontend sends — both are code changes
-this app does not have yet.
+Until you have a domain on the account, the password gate above is the control to use.
 
 ## Troubleshooting
 

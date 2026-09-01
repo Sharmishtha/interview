@@ -3,10 +3,12 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { app as api } from "./app.js";
+import { passwordGate } from "./gate.js";
 
 const port = Number(process.env.PORT ?? 3001);
 
 const app = new Hono();
+app.use("*", passwordGate());
 app.route("/", api);
 
 // In production the built frontend is served from the same origin. On Cloudflare
