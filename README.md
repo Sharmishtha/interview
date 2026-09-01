@@ -162,6 +162,51 @@ tests/                  74 tests: rubric, scoring math, evaluator, coaching, voi
 
 ## Setup
 
+### The whole sequence, in order
+
+Every command below is run **on your own machine, inside the `interview` folder** — there is no
+web console involved. `wrangler` is installed with the project and talks to Cloudflare over the
+network. The two callouts are the failures this actually hit in practice.
+
+```bash
+# 1. Prerequisites
+node --version                                  # must be v20 or higher
+
+# 2. Get the code
+git clone https://github.com/Sharmishtha/interview
+cd interview
+npm install
+
+# 3. Add the key
+cp .env.example .env                            # then edit: ELEVENLABS_API_KEY=sk_...
+
+# 4. Run it locally
+npm run dev                                     # API on :3001, UI on :5173
+#    open http://localhost:5173 - you should HEAR the first question
+
+# 5. Deploy (a second terminal, same folder)
+npx wrangler login                              # opens a browser, click Allow
+npx wrangler secret put ELEVENLABS_API_KEY      # paste the same key
+npm run deploy                                  # prints your live URL
+```
+
+> **The key must be the secret, not the key ID.** ElevenLabs shows the secret only once, at the
+> moment you create or rotate the key; the dashboard list afterwards shows a much shorter ID.
+> Using the ID returns `invalid_api_key` with `api_key_id_used_as_api_key`.
+
+> **`npm run dev` fails with an error object containing `port: 3001`?** That is `EADDRINUSE` - an
+> earlier run is still holding the port, and the terminal looks frozen because the frontend half
+> kept going. Free it and start again:
+> ```bash
+> lsof -ti:3001 | xargs kill -9                 # macOS / Linux
+> ```
+> ```powershell
+> Get-NetTCPConnection -LocalPort 3001 | Select-Object -Expand OwningProcess |
+>   ForEach-Object { Stop-Process -Id $_ -Force }   # Windows
+> ```
+
+Everything above is expanded below.
+
 ### Prerequisites
 
 - **Node.js 20 or newer** (`node --version`). Node 20 is required for the global `File` class the
@@ -321,7 +366,8 @@ this app does not have yet.
       scoring pipeline, deterministic evaluator, scorecard.
 - [x] **Phase 1 — Voice out.** ElevenLabs TTS asks the questions in distinct panelist voices.
 - [x] **Phase 2 — Voice in.** Browser mic capture → Scribe → transcript → score, with one
-      panel follow-up probe per question, and coaching to 8+ on every answer.
+      panel follow-up probe per question, and coaching to 8+ on every answer. Confirmed working
+      end to end against the live ElevenLabs API.
 - [ ] **Phase 3 — Natural conversation.** ElevenLabs Agents Platform for real-time turn-taking
       and adaptive probing; agent prompt generated from the question bank.
 - [ ] **Phase 4 — LLM evaluator + trends.** Claude reads the band descriptors and scores with
