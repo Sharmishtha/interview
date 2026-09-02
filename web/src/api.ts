@@ -1,4 +1,4 @@
-import type { AnswerRecord, Interview, Scorecard, SecondOpinion } from "./types";
+import type { AnswerRecord, Interview, Question, Scorecard, SecondOpinion } from "./types";
 
 async function failure(response: Response): Promise<never> {
   let detail = response.statusText;
@@ -40,11 +40,40 @@ export async function transcribe(audio: Blob): Promise<string> {
   return body.text;
 }
 
-export async function score(candidateName: string, answers: AnswerRecord[]): Promise<Scorecard> {
+/**
+ * Builds a one-question interview from something the candidate wrote.
+ *
+ * The question is rebuilt server-side here and again at scoring time. The client
+ * never gets to define what is scored - it only says what it would like asked.
+ */
+export async function customQuestion(params: {
+  text: string;
+  competency: string;
+  askedBy: string;
+}): Promise<Interview> {
+  const response = await fetch("/api/custom-question", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) return failure(response);
+  return (await response.json()) as Interview;
+}
+
+/**
+ * Custom questions travel with the request because the server's question bank
+ * has never heard of them. It rebuilds each one from the text and principle
+ * rather than trusting what is sent.
+ */
+export async function score(
+  candidateName: string,
+  answers: AnswerRecord[],
+  customQuestions: Question[] = [],
+): Promise<Scorecard> {
   const response = await fetch("/api/score", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ candidateName, answers }),
+    body: JSON.stringify({ candidateName, answers, customQuestions }),
   });
   if (!response.ok) return failure(response);
   return (await response.json()) as Scorecard;
@@ -57,11 +86,12 @@ export async function score(candidateName: string, answers: AnswerRecord[]): Pro
 export async function secondOpinion(
   candidateName: string,
   answers: AnswerRecord[],
+  customQuestions: Question[] = [],
 ): Promise<SecondOpinion> {
   const response = await fetch("/api/score/llm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ candidateName, answers }),
+    body: JSON.stringify({ candidateName, answers, customQuestions }),
   });
   if (!response.ok) return failure(response);
   return (await response.json()) as SecondOpinion;

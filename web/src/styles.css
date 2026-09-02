@@ -1162,3 +1162,174 @@ body {
 .drawer--section .competencies {
   margin-top: 18px;
 }
+
+/* --- compose your own question ------------------------------------------- */
+
+.compose {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.field {
+  display: block;
+  margin-bottom: 26px;
+}
+
+.field__label {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.field__hint {
+  display: block;
+  font-size: 13px;
+  color: var(--faint);
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.select {
+  appearance: none;
+  cursor: pointer;
+  /* Room for the chevron, which is painted rather than shipped as an asset. */
+  padding-right: 46px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 24px) 25px,
+    calc(100% - 18px) 25px;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+}
+
+.choices {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.choice {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 15px;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: var(--pill);
+  cursor: pointer;
+}
+
+/*
+ * Scoped to the unselected option. `.choice:hover` is more specific than
+ * `.choice--on`, so an unscoped hover rule repaints the *selected* option grey
+ * the moment the pointer is over it - which is exactly when someone is looking
+ * at it to check what they picked.
+ */
+.choice:hover:not(.choice--on) {
+  background: var(--surface);
+}
+
+.choice--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* --- practice history ---------------------------------------------------- */
+
+.history {
+  margin-top: 44px;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.history__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.history__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.history__confirm {
+  display: flex;
+  gap: 4px;
+}
+
+.button--sm {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.history__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.history__row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.history__row:last-child {
+  border-bottom: none;
+}
+
+.history__row .score {
+  font-size: 18px;
+  min-width: 38px;
+}
+
+.history__what {
+  flex: 1 1 auto;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.history__when {
+  font-size: 13px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.history__note {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--faint);
+}
+
+/* Where the score on screen did not come from the default evaluator. */
+.provenance {
+  margin: 32px 0 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--card);
+  padding: 16px 20px;
+}

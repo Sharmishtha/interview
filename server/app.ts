@@ -10,7 +10,12 @@ import { llmEvaluatorFor, LlmEvaluatorError } from "../src/scoring/llm-evaluator
 import { buildScorecard, compositeFor, scoreAnswers } from "../src/scoring/scorer.js";
 import { synthesize } from "../src/tts/elevenlabs.js";
 import { transcribe } from "../src/stt/elevenlabs.js";
-import type { AnswerRecord, InterviewQuestion, InterviewSession } from "../src/types.js";
+import type {
+  AnswerRecord,
+  CompetencyId,
+  InterviewQuestion,
+  InterviewSession,
+} from "../src/types.js";
 
 export interface Env {
   ELEVENLABS_API_KEY?: string;
@@ -251,9 +256,19 @@ app.post("/api/custom-question", async (c) => {
       askedBy?: string;
     }>();
 
+    // No default principle. The same answer reads differently depending on what
+    // the interviewer was listening for, so picking one on the candidate's
+    // behalf would silently score them against a rubric they did not choose.
+    if (!competency) {
+      return c.json(
+        { error: "Choose which principle this question should be scored against." },
+        400,
+      );
+    }
+
     const question = createCustomQuestion({
       text: text ?? "",
-      competency: (competency ?? "be-real") as never,
+      competency: competency as CompetencyId,
       askedBy,
     });
 

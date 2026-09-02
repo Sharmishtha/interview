@@ -1,33 +1,67 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
+import * as storage from "./storage";
 import { useRecorder } from "./useRecorder";
-import type { AnswerRecord, Interview, Panelist, Scorecard, SecondOpinion } from "./types";
+import type {
+  AnswerRecord,
+  Interview,
+  Panelist,
+  Question,
+  Scorecard,
+  SecondOpinion,
+} from "./types";
 
-type Screen = "setup" | "interview" | "complete" | "scoring" | "report";
+type Screen = "setup" | "compose" | "interview" | "complete" | "scoring" | "report";
 type Stage = "asking" | "answering" | "transcribing" | "review" | "probing";
+type Kind = "guide" | "custom";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("setup");
   const [candidateName, setCandidateName] = useState("");
   const [interview, setInterview] = useState<Interview | null>(null);
+  const [kind, setKind] = useState<Kind>("guide");
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
   const [scorecard, setScorecard] = useState<Scorecard | null>(null);
+  /** Which evaluator produced the score on screen. Never left implicit. */
+  const [scoredBy, setScoredBy] = useState<"heuristic" | "llm">("heuristic");
   const [error, setError] = useState<string | null>(null);
 
-  const start = useCallback(async (name: string) => {
+  /**
+   * A question the candidate wrote travels with every scoring request, because
+   * the server's bank has never heard of it. Empty for a normal interview.
+   */
+  const customQuestions = useMemo(
+    () => (kind === "custom" && interview ? interview.questions : []),
+    [interview, kind],
+  );
+
+  const begin = useCallback((name: string, loaded: Interview, asKind: Kind) => {
+    setInterview(loaded);
+    setKind(asKind);
+    setCandidateName(name);
+    setAnswers([]);
+    setScorecard(null);
     setError(null);
-    try {
-      // ?seed= pins the question set, so the same three can be rehearsed again.
-      const pinned = new URLSearchParams(window.location.search).get("seed");
-      setInterview(await api.fetchInterview(pinned === null ? undefined : Number(pinned)));
-      setCandidateName(name);
-      setAnswers([]);
-      setScorecard(null);
-      setScreen("interview");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load the interview.");
-    }
+    setScreen("interview");
   }, []);
+
+  const start = useCallback(
+    async (name: string) => {
+      setError(null);
+      try {
+        // ?seed= pins the question set, so the same three can be rehearsed again.
+        const pinned = new URLSearchParams(window.location.search).get("seed");
+        begin(
+          name,
+          await api.fetchInterview(pinned === null ? undefined : Number(pinned)),
+          "guide",
+        );
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not load the interview.");
+      }
+    },
+    [begin],
+  );
 
   // The interview ends without a score; revealing it is a deliberate second step.
   const finish = useCallback((collected: AnswerRecord[]) => {
@@ -38,16 +72,54 @@ export default function App() {
   const reveal = useCallback(async () => {
     setScreen("scoring");
     try {
-      setScorecard(await api.score(candidateName, answers));
+      // A question someone wrote for themselves is usually the one pattern
+      // matching handles worst: it is specific, and often story-shaped. So a
+      // custom question is scored by the model where one is configured, and
+      // falls back to the free evaluator where it is not.
+      let card: Scorecard | null = null;
+
+      if (kind === "custom" && (await api.capabilities()).llmEvaluator) {
+        try {
+          card = await api.secondOpinion(candidateName, answers, customQuestions);
+        } catch {
+          // Rate limited, key rejected, model down. The free evaluator needs no
+          // key, so a paid-path failure must never cost someone their answers.
+          card = null;
+        }
+      }
+
+      const scored = card ?? (await api.score(candidateName, answers, customQuestions));
+      setScorecard(scored);
+      setScoredBy(card ? "llm" : "heuristic");
+      storage.saveAttempt(scored, interview?.questions ?? [], kind);
       setScreen("report");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Scoring failed.");
       setScreen("complete");
     }
-  }, [answers, candidateName]);
+  }, [answers, candidateName, customQuestions, interview, kind]);
+
+  if (screen === "compose") {
+    return (
+      <Compose
+        candidateName={candidateName}
+        onCancel={() => setScreen("setup")}
+        onReady={(name, loaded) => begin(name, loaded, "custom")}
+      />
+    );
+  }
 
   if (screen === "setup" || !interview) {
-    return <Setup onStart={start} error={error} />;
+    return (
+      <Setup
+        onStart={start}
+        onCompose={(name) => {
+          setCandidateName(name);
+          setScreen("compose");
+        }}
+        error={error}
+      />
+    );
   }
   if (screen === "complete") {
     return <Complete count={answers.length} onReveal={reveal} error={error} />;
@@ -55,8 +127,12 @@ export default function App() {
   if (screen === "scoring") {
     return (
       <Centered
-        title="Scoring your interview"
-        subtitle="Reading your answers against the rubric."
+        title={kind === "custom" ? "Scoring your question" : "Scoring your interview"}
+        subtitle={
+          kind === "custom"
+            ? "Reading your answer against the principle you chose. This one takes a few seconds longer."
+            : "Reading your answers against the rubric."
+        }
       />
     );
   }
@@ -67,6 +143,8 @@ export default function App() {
         interview={interview}
         candidateName={candidateName}
         answers={answers}
+        customQuestions={customQuestions}
+        scoredBy={scoredBy}
         onRestart={() => setScreen("setup")}
       />
     );
@@ -78,8 +156,19 @@ export default function App() {
 // Setup
 // ---------------------------------------------------------------------------
 
-function Setup({ onStart, error }: { onStart: (name: string) => void; error: string | null }) {
+function Setup({
+  onStart,
+  onCompose,
+  error,
+}: {
+  onStart: (name: string) => void;
+  onCompose: (name: string) => void;
+  error: string | null;
+}) {
   const [name, setName] = useState("");
+  const [past, setPast] = useState<storage.StoredAttempt[]>([]);
+
+  useEffect(() => setPast(storage.history()), []);
 
   return (
     <main className="shell shell--center">
@@ -141,7 +230,227 @@ function Setup({ onStart, error }: { onStart: (name: string) => void; error: str
           <button className="button button--primary button--lg" type="submit">
             Begin interview
           </button>
+          <button
+            className="button button--lg"
+            type="button"
+            onClick={() => onCompose(name.trim() || "Practice run")}
+          >
+            Practise one question
+          </button>
         </form>
+
+        {error && <p className="alert">{error}</p>}
+
+        {past.length > 0 && (
+          <History
+            entries={past}
+            onClear={() => {
+              storage.clearHistory();
+              setPast([]);
+            }}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Practice history
+// ---------------------------------------------------------------------------
+
+/**
+ * Past attempts, from this browser's own store. Shown on the way in rather than
+ * on the way out: the point of keeping them is to see whether you are getting
+ * better, and that question is worth asking before you start, not after.
+ */
+function History({ entries, onClear }: { entries: storage.StoredAttempt[]; onClear: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <section className="history">
+      <div className="history__head">
+        <h2 className="history__title">Your practice history</h2>
+        {confirming ? (
+          <span className="history__confirm">
+            <button
+              className="button button--ghost button--sm"
+              onClick={() => {
+                onClear();
+                setConfirming(false);
+              }}
+            >
+              Delete everything
+            </button>
+            <button
+              className="button button--ghost button--sm"
+              onClick={() => setConfirming(false)}
+            >
+              Keep it
+            </button>
+          </span>
+        ) : (
+          <button className="button button--ghost button--sm" onClick={() => setConfirming(true)}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      <ul className="history__list">
+        {entries.slice(0, 5).map((entry) => (
+          <li className="history__row" key={entry.id}>
+            <span className={`score score--${tier(entry.overall)}`}>
+              {entry.overall.toFixed(1)}
+            </span>
+            <span className="history__what">
+              {entry.kind === "custom" ? entry.questions[0]?.text : entry.headline}
+            </span>
+            <span className="history__when">{shortDate(entry.at)}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="history__note">
+        Kept in this browser only — never sent anywhere, and gone when you clear site data.
+      </p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Write your own question
+// ---------------------------------------------------------------------------
+
+/**
+ * Rehearsing one specific question you expect to be asked.
+ *
+ * The principle is chosen rather than guessed at. The same answer reads
+ * differently depending on what the interviewer was listening for, so picking one
+ * on someone's behalf would score them against a rubric they did not choose.
+ */
+function Compose({
+  candidateName,
+  onCancel,
+  onReady,
+}: {
+  candidateName: string;
+  onCancel: () => void;
+  onReady: (name: string, interview: Interview) => void;
+}) {
+  const [rubric, setRubric] = useState<Interview["rubric"] | null>(null);
+  const [text, setText] = useState("");
+  const [competency, setCompetency] = useState("");
+  const [askedBy, setAskedBy] = useState("cto");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The principle list lives with the rubric on the server, so it stays in step
+  // with the guide rather than being copied into the frontend.
+  useEffect(() => {
+    let live = true;
+    void api
+      .fetchInterview()
+      .then((interview) => live && setRubric(interview.rubric))
+      .catch(() => live && setError("Could not load the list of principles."));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onReady(candidateName, await api.customQuestion({ text, competency, askedBy }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not set that question up.");
+      setBusy(false);
+    }
+  };
+
+  const ready = text.trim().length >= 12 && competency !== "";
+
+  return (
+    <main className="shell">
+      <div className="compose">
+        <p className="eyebrow">Practise one question</p>
+        <h1 className="display">
+          What do you want to be asked?
+          <span className="display__sub">
+            Type the question you are dreading. The panel will ask it, then probe.
+          </span>
+        </h1>
+
+        <label className="field">
+          <span className="field__label">The question</span>
+          <textarea
+            className="textarea"
+            rows={4}
+            autoFocus
+            placeholder="Tell me about a time you had to shut down a project your team believed in."
+            maxLength={400}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+          />
+          <span className="field__hint">{400 - text.length} characters left</span>
+        </label>
+
+        <label className="field">
+          <span className="field__label">Score it against</span>
+          <select
+            className="input select"
+            value={competency}
+            onChange={(event) => setCompetency(event.target.value)}
+          >
+            <option value="">Choose a principle…</option>
+            {(rubric?.pillars ?? []).map((pillar) => (
+              <optgroup key={pillar.id} label={pillar.name}>
+                {(rubric?.competencies ?? [])
+                  .filter((c) => c.pillar === pillar.id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+          <span className="field__hint">
+            The same answer reads differently depending on what the interviewer was listening for.
+          </span>
+        </label>
+
+        <label className="field">
+          <span className="field__label">Who asks it</span>
+          <div className="choices">
+            {[
+              ["cto", "Ravi Menon · CTO"],
+              ["ceo", "Claire Whitfield · CEO"],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`choice ${askedBy === id ? "choice--on" : ""}`}
+                onClick={() => setAskedBy(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </label>
+
+        <div className="controls__row">
+          <button
+            className="button button--primary button--lg"
+            disabled={!ready || busy}
+            onClick={() => void submit()}
+          >
+            {busy ? "Setting it up…" : "Ask me this"}
+          </button>
+          <button className="button button--ghost" onClick={onCancel}>
+            Back
+          </button>
+        </div>
 
         {error && <p className="alert">{error}</p>}
       </div>
@@ -556,12 +865,16 @@ function Report({
   interview,
   candidateName,
   answers,
+  customQuestions,
+  scoredBy,
   onRestart,
 }: {
   scorecard: Scorecard;
   interview: Interview;
   candidateName: string;
   answers: AnswerRecord[];
+  customQuestions: Question[];
+  scoredBy: "heuristic" | "llm";
   onRestart: () => void;
 }) {
   const competency = useMemo(
@@ -626,11 +939,20 @@ function Report({
           </div>
         )}
 
-        <SecondOpinionPanel
-          candidateName={candidateName}
-          answers={answers}
-          heuristicOverall={scorecard.overall}
-        />
+        {scoredBy === "llm" ? (
+          <p className="provenance">
+            This one was read by the model rather than pattern-matched, because you wrote the
+            question yourself.
+          </p>
+        ) : (
+          <SecondOpinionPanel
+            candidateName={candidateName}
+            answers={answers}
+            customQuestions={customQuestions}
+            heuristicOverall={scorecard.overall}
+            sessionId={scorecard.sessionId}
+          />
+        )}
 
         <h2 className="section">Strengths and gaps</h2>
         <div className="callouts">
@@ -799,11 +1121,15 @@ function Report({
 function SecondOpinionPanel({
   candidateName,
   answers,
+  customQuestions,
   heuristicOverall,
+  sessionId,
 }: {
   candidateName: string;
   answers: AnswerRecord[];
+  customQuestions: Question[];
   heuristicOverall: number;
+  sessionId: string;
 }) {
   const [available, setAvailable] = useState(false);
   const [running, setRunning] = useState(false);
@@ -826,7 +1152,9 @@ function SecondOpinionPanel({
     setRunning(true);
     setError(null);
     try {
-      setResult(await api.secondOpinion(candidateName, answers));
+      const opinion = await api.secondOpinion(candidateName, answers, customQuestions);
+      setResult(opinion);
+      storage.recordSecondOpinion(sessionId, opinion.overall);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The second opinion could not be reached.");
     } finally {
@@ -907,6 +1235,18 @@ function initials(name?: string): string {
     .map((part) => part[0])
     .slice(0, 2)
     .join("");
+}
+
+/** "3 Sep" for this year, "3 Sep 2025" otherwise. */
+function shortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
 }
 
 function formatTime(seconds: number): string {
