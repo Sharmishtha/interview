@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
 import { useRecorder } from "./useRecorder";
-import type { AnswerRecord, Interview, Panelist, Scorecard } from "./types";
+import type { AnswerRecord, Interview, Panelist, Scorecard, SecondOpinion } from "./types";
 
 type Screen = "setup" | "interview" | "complete" | "scoring" | "report";
 type Stage = "asking" | "answering" | "transcribing" | "review" | "probing";
@@ -53,10 +53,23 @@ export default function App() {
     return <Complete count={answers.length} onReveal={reveal} error={error} />;
   }
   if (screen === "scoring") {
-    return <Centered title="Scoring your interview" subtitle="Reading your answers against the rubric." />;
+    return (
+      <Centered
+        title="Scoring your interview"
+        subtitle="Reading your answers against the rubric."
+      />
+    );
   }
   if (screen === "report" && scorecard) {
-    return <Report scorecard={scorecard} interview={interview} onRestart={() => setScreen("setup")} />;
+    return (
+      <Report
+        scorecard={scorecard}
+        interview={interview}
+        candidateName={candidateName}
+        answers={answers}
+        onRestart={() => setScreen("setup")}
+      />
+    );
   }
   return <Room interview={interview} onFinish={finish} error={error} />;
 }
@@ -184,8 +197,12 @@ function Room({
       await element.play();
       setVoiceNote(null);
     } catch (cause) {
-      // Voice is a nicety; the interview continues in text if it fails.
-      setVoiceNote(cause instanceof Error ? cause.message : "Voice unavailable.");
+      // Voice is a nicety; the interview continues in text if it fails. The raw
+      // error is kept, but after a sentence saying what it means for you.
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setVoiceNote(
+        `The panel could not say this one out loud, so read it above and answer as normal. (${detail})`,
+      );
     }
   }, []);
 
@@ -266,7 +283,11 @@ function Room({
         { speaker: "candidate", text: transcript },
         ...(probeTranscript
           ? [
-              { speaker: "panelist" as const, speakerId: question.askedBy, text: probe?.question ?? "" },
+              {
+                speaker: "panelist" as const,
+                speakerId: question.askedBy,
+                text: probe?.question ?? "",
+              },
               { speaker: "candidate" as const, text: probeTranscript },
             ]
           : []),
@@ -436,7 +457,9 @@ function Room({
               </button>
               <button
                 className="button button--ghost"
-                onClick={() => void say(probing && probe ? probe.question : question.text, panelist)}
+                onClick={() =>
+                  void say(probing && probe ? probe.question : question.text, panelist)
+                }
               >
                 Replay
               </button>
@@ -531,10 +554,14 @@ function Complete({
 function Report({
   scorecard,
   interview,
+  candidateName,
+  answers,
   onRestart,
 }: {
   scorecard: Scorecard;
   interview: Interview;
+  candidateName: string;
+  answers: AnswerRecord[];
   onRestart: () => void;
 }) {
   const competency = useMemo(
@@ -558,9 +585,9 @@ function Report({
     <main className="shell">
       <section className="report">
         <header className="report__head">
-          <div>
-            <p className="eyebrow">Scorecard</p>
-            <h1 className="display display--sm">{scorecard.candidateName}</h1>
+          <div className="coach">
+            <p className="eyebrow">Nicely done — here is where you landed</p>
+            <h1 className="coach__headline">{scorecard.narrative.headline}</h1>
           </div>
           <div className="overall">
             <span className={`overall__value score--${tier(scorecard.overall)}`}>
@@ -570,10 +597,48 @@ function Report({
           </div>
         </header>
 
+        {/* One human line per principle, before any bar chart asks to be read. */}
+        <div className="reads">
+          {scorecard.competencyScores.map((score) => (
+            <div className="read" key={score.competency}>
+              <span className="read__name">
+                {competency.get(score.competency)?.name ?? score.competency}
+              </span>
+              <span className={`read__score score--${tier(score.value)}`}>
+                {score.value.toFixed(1)}
+              </span>
+              <span className="read__text">
+                {scorecard.narrative.reads.find((r) => r.competency === score.competency)?.text ??
+                  score.band}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {scorecard.narrative.oneThing && (
+          <div className="onething">
+            <h2 className="onething__title">One thing to change next time</h2>
+            <p className="onething__prose">{scorecard.narrative.oneThing.prose}</p>
+            <div className="onething__worth">
+              <span className="worth">worth +{scorecard.narrative.oneThing.gain.toFixed(2)}</span>
+              <span className="worth__note">on that answer, next attempt</span>
+            </div>
+          </div>
+        )}
+
+        <SecondOpinionPanel
+          candidateName={candidateName}
+          answers={answers}
+          heuristicOverall={scorecard.overall}
+        />
+
+        <h2 className="section">Strengths and gaps</h2>
         <div className="callouts">
           <div className="callout callout--good">
             <span>Strengths</span>
-            <p>{scorecard.strengths.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}</p>
+            <p>
+              {scorecard.strengths.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}
+            </p>
           </div>
           <div className="callout callout--warn">
             <span>Work on</span>
@@ -581,28 +646,37 @@ function Report({
           </div>
         </div>
 
-        <h2 className="section">Principles</h2>
-        <div className="competencies">
-          {scorecard.competencyScores.map((score) => (
-            <div className="competency" key={score.competency}>
-              <p className="competency__pillar">{pillarName.get(score.pillar) ?? score.pillar}</p>
-              <div className="competency__head">
-                <strong>{competency.get(score.competency)?.name ?? score.competency}</strong>
-                <span className={`score score--${tier(score.value)}`}>{score.value.toFixed(1)}</span>
+        <details className="drawer drawer--section">
+          <summary>The rubric&apos;s own words, principle by principle</summary>
+          <div className="competencies">
+            {scorecard.competencyScores.map((score) => (
+              <div className="competency" key={score.competency}>
+                <p className="competency__pillar">{pillarName.get(score.pillar) ?? score.pillar}</p>
+                <div className="competency__head">
+                  <strong>{competency.get(score.competency)?.name ?? score.competency}</strong>
+                  <span className={`score score--${tier(score.value)}`}>
+                    {score.value.toFixed(1)}
+                  </span>
+                </div>
+                <div className="track">
+                  <span
+                    className={`fill fill--${tier(score.value)}`}
+                    style={{ width: `${score.value * 10}%` }}
+                  />
+                </div>
+                <p className="competency__band">{score.band}</p>
               </div>
-              <div className="track">
-                <span className={`fill fill--${tier(score.value)}`} style={{ width: `${score.value * 10}%` }} />
-              </div>
-              <p className="competency__band">{score.band}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </details>
 
         <h2 className="section">How to reach 8+</h2>
         <div className="answers">
           {scorecard.guidance.map((guidance) => (
             <article className="guide" key={guidance.questionId}>
-              <p className="guide__question">{questionText.get(guidance.questionId) ?? guidance.questionId}</p>
+              <p className="guide__question">
+                {questionText.get(guidance.questionId) ?? guidance.questionId}
+              </p>
 
               <div className="jump">
                 <span className={`score score--${tier(guidance.composite)}`}>
@@ -613,7 +687,8 @@ function Report({
                   {guidance.reachable.toFixed(1)}
                 </span>
                 <span className="jump__label">
-                  with the {guidance.lifts.length} change{guidance.lifts.length === 1 ? "" : "s"} below
+                  with the {guidance.lifts.length} change{guidance.lifts.length === 1 ? "" : "s"}{" "}
+                  below
                 </span>
               </div>
 
@@ -646,7 +721,10 @@ function Report({
                 <summary>The interviewer&apos;s follow-ups ({guidance.probes.length})</summary>
                 <ul className="probes">
                   {guidance.probes.map((probe) => (
-                    <li key={probe.question} className={probe.likelyUncovered ? "probes--open" : ""}>
+                    <li
+                      key={probe.question}
+                      className={probe.likelyUncovered ? "probes--open" : ""}
+                    >
                       {probe.question}
                       {probe.likelyUncovered && <em> likely not covered</em>}
                     </li>
@@ -698,6 +776,107 @@ function Report({
         </button>
       </section>
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Second opinion
+// ---------------------------------------------------------------------------
+
+/**
+ * The paid evaluator, offered as a second opinion rather than as the score.
+ *
+ * The free scorecard is deterministic, instant, and costs nothing to run. This
+ * one reads the answers, catches the things pattern matching cannot - a fluent
+ * answer that means nothing - and costs money every time it runs. Presenting it
+ * as an addition rather than an upgrade is the honest framing: it has not been
+ * proven against the eval corpus, so it does not get to overwrite a number the
+ * candidate has already been shown.
+ *
+ * The button hides itself entirely where no key is configured. A button that
+ * cannot work is worse than no button.
+ */
+function SecondOpinionPanel({
+  candidateName,
+  answers,
+  heuristicOverall,
+}: {
+  candidateName: string;
+  answers: AnswerRecord[];
+  heuristicOverall: number;
+}) {
+  const [available, setAvailable] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<SecondOpinion | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void api.capabilities().then((caps) => {
+      if (live) setAvailable(caps.llmEvaluator);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (!available) return null;
+
+  const run = async () => {
+    setRunning(true);
+    setError(null);
+    try {
+      setResult(await api.secondOpinion(candidateName, answers));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The second opinion could not be reached.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const delta = result ? result.overall - heuristicOverall : 0;
+
+  return (
+    <section className="second">
+      <div className="second__head">
+        <h2 className="second__title">Second opinion</h2>
+        <span className="second__badge">Coming to the paid plan</span>
+      </div>
+      <p className="second__blurb">
+        Your score above is worked out from what your answers contain. This one has a model read
+        them instead, which catches what patterns cannot — a fluent answer that says nothing. It
+        does not replace your score; the two are shown side by side so you can see where they
+        disagree.
+      </p>
+
+      {result ? (
+        <>
+          <div className="second__result">
+            <span className={`overall__value score--${tier(result.overall)}`}>
+              {result.overall.toFixed(1)}
+            </span>
+            <span className="second__delta">
+              {Math.abs(delta) < 0.05
+                ? "the same as your score above"
+                : `${delta > 0 ? "above" : "below"} your score above by ${Math.abs(delta).toFixed(1)}`}
+            </span>
+          </div>
+          <ul className="second__headlines">
+            {result.headlines.map((entry) => (
+              <li key={entry.questionId}>{entry.headline}</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <div className="controls__row">
+          <button className="button" onClick={() => void run()} disabled={running}>
+            {running ? "Reading your answers…" : "Get a second opinion"}
+          </button>
+        </div>
+      )}
+
+      {error && <p className="alert">{error}</p>}
+    </section>
   );
 }
 

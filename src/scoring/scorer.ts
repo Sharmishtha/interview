@@ -10,6 +10,7 @@ import type {
   Scorecard,
 } from "../types.js";
 import { guidanceFor } from "./coach.js";
+import { narrativeFor } from "./narrative.js";
 import type { Evaluator } from "./evaluator.js";
 
 /** Weighted roll-up of an answer's dimension scores into a single 0-10 composite. */
@@ -131,6 +132,13 @@ export function buildScorecard(session: InterviewSession, answerScores: AnswerSc
       .reverse()
       .map((s) => s.competency),
     guidance,
+    narrative: narrativeFor(
+      answerScores,
+      competencyScores,
+      guidance,
+      session.questions,
+      answerById,
+    ),
   };
 }
 

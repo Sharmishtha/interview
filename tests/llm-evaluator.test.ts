@@ -178,7 +178,9 @@ describe("the returned scores", () => {
   });
 
   it("carries the plain-language headline through for the report", async () => {
-    parse.mockResolvedValue(response({}, "  Your Gracenote story was the strongest of the three. "));
+    parse.mockResolvedValue(
+      response({}, "  Your Gracenote story was the strongest of the three. "),
+    );
     const review = await evaluator().review(QUESTION, ANSWER);
 
     expect(review.headline).toBe("Your Gracenote story was the strongest of the three.");

@@ -197,6 +197,18 @@ export interface AnswerGuidance {
   flags: string[];
 }
 
+/** The plain-language read of the scorecard. Built in scoring/narrative.ts. */
+export interface ScorecardNarrative {
+  headline: string;
+  reads: { competency: CompetencyId; text: string }[];
+  oneThing: {
+    dimension: DimensionId;
+    prose: string;
+    gain: number;
+    questionId: InterviewQuestion["id"];
+  } | null;
+}
+
 export interface Scorecard {
   sessionId: string;
   candidateName: string;
@@ -207,6 +219,8 @@ export interface Scorecard {
   strengths: CompetencyId[];
   gaps: CompetencyId[];
   guidance: AnswerGuidance[];
+  /** What a coach would say before quoting any of the numbers above. */
+  narrative: ScorecardNarrative;
 }
 
 export interface InterviewSession {

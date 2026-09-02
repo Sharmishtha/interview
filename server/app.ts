@@ -102,11 +102,7 @@ app.post("/api/stt", async (c) => {
       return c.json({ error: "Expected a non-empty audio body." }, 400);
     }
 
-    const result = await transcribe(
-      apiKey(c),
-      audio,
-      c.req.header("content-type") ?? "audio/webm",
-    );
+    const result = await transcribe(apiKey(c), audio, c.req.header("content-type") ?? "audio/webm");
     return c.json(result);
   } catch (error) {
     return c.json({ error: message(error) }, 502);

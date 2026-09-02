@@ -1,4 +1,4 @@
-import type { AnswerRecord, Interview, Scorecard } from "./types";
+import type { AnswerRecord, Interview, Scorecard, SecondOpinion } from "./types";
 
 async function failure(response: Response): Promise<never> {
   let detail = response.statusText;
@@ -48,4 +48,34 @@ export async function score(candidateName: string, answers: AnswerRecord[]): Pro
   });
   if (!response.ok) return failure(response);
   return (await response.json()) as Scorecard;
+}
+
+/**
+ * The second opinion, which costs money per run and may not be configured at
+ * all. Kept separate from `score` so the free scorecard never waits on it.
+ */
+export async function secondOpinion(
+  candidateName: string,
+  answers: AnswerRecord[],
+): Promise<SecondOpinion> {
+  const response = await fetch("/api/score/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateName, answers }),
+  });
+  if (!response.ok) return failure(response);
+  return (await response.json()) as SecondOpinion;
+}
+
+/** Whether this deployment can offer the second opinion at all. */
+export async function capabilities(): Promise<{ llmEvaluator: boolean }> {
+  try {
+    const response = await fetch("/api/health");
+    if (!response.ok) return { llmEvaluator: false };
+    const body = (await response.json()) as { llmEvaluator?: boolean };
+    return { llmEvaluator: Boolean(body.llmEvaluator) };
+  } catch {
+    // A button that cannot work is worse than no button.
+    return { llmEvaluator: false };
+  }
 }

@@ -88,6 +88,12 @@ export interface AnswerGuidance {
   flags: string[];
 }
 
+export interface ScorecardNarrative {
+  headline: string;
+  reads: { competency: string; text: string }[];
+  oneThing: { dimension: string; prose: string; gain: number; questionId: string } | null;
+}
+
 export interface Scorecard {
   sessionId: string;
   candidateName: string;
@@ -97,6 +103,13 @@ export interface Scorecard {
   strengths: string[];
   gaps: string[];
   guidance: AnswerGuidance[];
+  narrative: ScorecardNarrative;
+}
+
+/** The paid second opinion: the same scorecard, plus what the model said about it. */
+export interface SecondOpinion extends Scorecard {
+  evaluator: string;
+  headlines: { questionId: string; headline: string; unverifiedQuotes: string[] }[];
 }
 
 export interface AnswerRecord {

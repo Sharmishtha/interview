@@ -33,14 +33,32 @@ which is why the speech wrappers take the API key as an argument rather than rea
 `process.env` themselves.
 
 **Every score cites spans.** `tests/evaluator.test.ts` asserts
-`answer.slice(span.start, span.end) === span.text`. When the LLM evaluator lands, that constraint
-is what stops it inventing evidence. Do not relax it.
+`answer.slice(span.start, span.end) === span.text`. That constraint is what stops the LLM
+evaluator inventing evidence: a model cannot count characters, so `LlmEvaluator` asks for
+*quotations* and `locateQuote` finds them. Re-wrapped whitespace is forgiven; a paraphrase is
+dropped and reported in `unverifiedQuotes`. Do not relax either half.
 
 **The eval corpus is the scorer's test suite.** `npm run eval` fails if tier means stop
 separating, if any strong answer scores below any weak one, or if a case leaves its band. Change
 a pattern, run it. Two cases are marked `knownLimitation` and are reported but not enforced —
 `keyword-stuffed` (8.36) and `fake-humility` (6.29). They are documented rather than asserted
 away, and they are the argument for the LLM evaluator. Do not tune thresholds to hide them.
+
+**The LLM evaluator is a second opinion, not the score.** It is served from a separate route,
+hidden entirely when `ANTHROPIC_API_KEY` is absent, and shown beside the free score rather than
+instead of it. It has never been run against the eval corpus — doing so costs money per case and
+the scores are non-deterministic. Until it beats the two `knownLimitation` cases repeatably, it
+does not get to overwrite a number the candidate has already been shown.
+
+**Bright Studio is the visual direction; Coach's Corner is the voice.** White ground, one blue
+(`#4257f5`), Outfit, big soft pill controls, one action per screen. The scorecard opens with a
+sentence about you rather than a number — that half comes from the Coach's Corner direction and
+lives in `src/scoring/narrative.ts`. The numbers follow as evidence for the sentence. Both
+directions are in `/home/user/design` as `.dc.html` artboards.
+
+**The narrative is derived, never decorative.** Every sentence `narrative.ts` produces comes from
+a score that was actually computed, including the refusal to congratulate a set of answers where
+nothing landed. Do not add encouragement the evidence does not support.
 
 **Coaching lifts are priced, not guessed.** The composite is a weighted sum of dimensions, so the
 value of any single improvement is exactly computable. Keep it that way — a suggestion without a
