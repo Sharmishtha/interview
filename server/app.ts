@@ -6,13 +6,16 @@ import { createCustomQuestion, CustomQuestionError } from "../src/questions/cust
 import { competencies, pillars } from "../src/rubric/competencies.js";
 import { dimensions } from "../src/rubric/dimensions.js";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
-import { buildScorecard, scoreAnswers } from "../src/scoring/scorer.js";
+import { llmEvaluatorFor, LlmEvaluatorError } from "../src/scoring/llm-evaluator.js";
+import { buildScorecard, compositeFor, scoreAnswers } from "../src/scoring/scorer.js";
 import { synthesize } from "../src/tts/elevenlabs.js";
 import { transcribe } from "../src/stt/elevenlabs.js";
 import type { AnswerRecord, InterviewQuestion, InterviewSession } from "../src/types.js";
 
 export interface Env {
   ELEVENLABS_API_KEY?: string;
+  /** Enables the second-opinion evaluator. Absent means the feature is simply off. */
+  ANTHROPIC_API_KEY?: string;
   /** When set, the whole app sits behind a password. See server/gate.ts. */
   APP_PASSWORD?: string;
   /** Cloudflare static assets binding. Absent under Node. */
@@ -25,10 +28,14 @@ type Ctx = Context<{ Bindings: Env }>;
  * Secrets arrive differently on each platform: bound to the request context on
  * Cloudflare Workers, and through the environment on Node.
  */
-function apiKey(c: Ctx): string {
-  const bound = c.env?.ELEVENLABS_API_KEY;
+function secret(c: Ctx, name: "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY"): string {
+  const bound = c.env?.[name];
   if (bound) return bound;
-  return typeof process !== "undefined" ? (process.env.ELEVENLABS_API_KEY ?? "") : "";
+  return typeof process !== "undefined" ? (process.env[name] ?? "") : "";
+}
+
+function apiKey(c: Ctx): string {
+  return secret(c, "ELEVENLABS_API_KEY");
 }
 
 function message(error: unknown): string {
@@ -106,60 +113,132 @@ app.post("/api/stt", async (c) => {
   }
 });
 
+/** A request body rejected before any scoring happens. */
+interface Refusal {
+  error: string;
+  status: 400;
+}
+
+interface ScoreRequest {
+  candidateName?: string;
+  answers?: AnswerRecord[];
+  /** Questions the candidate wrote, which the bank has never heard of. */
+  customQuestions?: InterviewQuestion[];
+}
+
+/**
+ * Rebuilds the session a scoring request describes. Shared by both evaluators so
+ * they score exactly the same thing and can be compared honestly.
+ */
+function sessionFrom(body: ScoreRequest): InterviewSession | Refusal {
+  const { candidateName, answers, customQuestions } = body;
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return { error: "answers is required", status: 400 };
+  }
+
+  // A custom question is rebuilt here rather than trusted as sent: the client
+  // could otherwise post arbitrary text as a question and have it scored.
+  const custom = new Map<string, InterviewQuestion>();
+  for (const supplied of customQuestions ?? []) {
+    try {
+      const rebuilt = createCustomQuestion({
+        text: supplied?.text ?? "",
+        competency: supplied?.competency,
+        askedBy: supplied?.askedBy,
+        id: supplied?.id,
+      });
+      custom.set(rebuilt.id, rebuilt);
+    } catch (error) {
+      if (error instanceof CustomQuestionError) {
+        return { error: error.message, status: 400 };
+      }
+      throw error;
+    }
+  }
+
+  const questions = answers
+    .map((a) => questionById.get(a.questionId) ?? custom.get(a.questionId))
+    .filter((q): q is InterviewQuestion => Boolean(q));
+
+  if (questions.length !== answers.length) {
+    return { error: "One or more answers reference an unknown question.", status: 400 };
+  }
+
+  return {
+    id: `session-${Date.now()}`,
+    candidateName: candidateName?.trim() || "Practice run",
+    panelists: executivePanel,
+    questions,
+    answers,
+    startedAt: new Date().toISOString(),
+  };
+}
+
+function isRefusal(result: InterviewSession | Refusal): result is Refusal {
+  return "error" in result;
+}
+
 /** Scores a completed set of answers and returns the scorecard. */
 app.post("/api/score", async (c) => {
   try {
-    const { candidateName, answers, customQuestions } = await c.req.json<{
-      candidateName?: string;
-      answers?: AnswerRecord[];
-      /** Questions the candidate wrote, which the bank has never heard of. */
-      customQuestions?: InterviewQuestion[];
-    }>();
-
-    if (!Array.isArray(answers) || answers.length === 0) {
-      return c.json({ error: "answers is required" }, 400);
-    }
-
-    // A custom question is rebuilt here rather than trusted as sent: the client
-    // could otherwise post arbitrary text as a question and have it scored.
-    const custom = new Map<string, InterviewQuestion>();
-    for (const supplied of customQuestions ?? []) {
-      try {
-        const rebuilt = createCustomQuestion({
-          text: supplied?.text ?? "",
-          competency: supplied?.competency,
-          askedBy: supplied?.askedBy,
-          id: supplied?.id,
-        });
-        custom.set(rebuilt.id, rebuilt);
-      } catch (error) {
-        if (error instanceof CustomQuestionError) {
-          return c.json({ error: error.message }, 400);
-        }
-        throw error;
-      }
-    }
-
-    const questions = answers
-      .map((a) => questionById.get(a.questionId) ?? custom.get(a.questionId))
-      .filter((q): q is NonNullable<typeof q> => Boolean(q));
-
-    if (questions.length !== answers.length) {
-      return c.json({ error: "One or more answers reference an unknown question." }, 400);
-    }
-
-    const session: InterviewSession = {
-      id: `session-${Date.now()}`,
-      candidateName: candidateName?.trim() || "Practice run",
-      panelists: executivePanel,
-      questions,
-      answers,
-      startedAt: new Date().toISOString(),
-    };
+    const session = sessionFrom(await c.req.json<ScoreRequest>());
+    if (isRefusal(session)) return c.json({ error: session.error }, session.status);
 
     const answerScores = await scoreAnswers(session, new HeuristicEvaluator());
     return c.json(buildScorecard(session, answerScores));
   } catch (error) {
+    return c.json({ error: message(error) }, 500);
+  }
+});
+
+/**
+ * The second opinion: the same answers, scored by a model reading them rather
+ * than by pattern matching. Kept on its own route because it costs money and is
+ * slow, so it happens only when the candidate asks for it.
+ */
+app.post("/api/score/llm", async (c) => {
+  const evaluator = llmEvaluatorFor(secret(c, "ANTHROPIC_API_KEY"));
+  if (!evaluator) {
+    return c.json(
+      { error: "The second-opinion evaluator is not configured on this deployment." },
+      503,
+    );
+  }
+
+  try {
+    const session = sessionFrom(await c.req.json<ScoreRequest>());
+    if (isRefusal(session)) return c.json({ error: session.error }, session.status);
+
+    const byId = new Map(session.questions.map((q) => [q.id, q]));
+    const reviews = await Promise.all(
+      session.answers.map(async (record) => ({
+        record,
+        review: await evaluator.review(byId.get(record.questionId)!, record.answer),
+      })),
+    );
+
+    const answerScores = reviews.map(({ record, review }) => ({
+      questionId: record.questionId,
+      dimensionScores: review.dimensionScores,
+      composite: compositeFor(review.dimensionScores),
+    }));
+
+    return c.json({
+      ...buildScorecard(session, answerScores),
+      evaluator: evaluator.name,
+      headlines: reviews.map(({ record, review }) => ({
+        questionId: record.questionId,
+        headline: review.headline,
+        // Surfaced rather than hidden: a model quoting words the candidate did
+        // not say is the failure mode worth knowing about.
+        unverifiedQuotes: review.unverifiedQuotes,
+      })),
+    });
+  } catch (error) {
+    if (error instanceof LlmEvaluatorError) {
+      return c.json({ error: error.message }, 502);
+    }
     return c.json({ error: message(error) }, 500);
   }
 });
@@ -205,4 +284,11 @@ app.post("/api/custom-question", async (c) => {
   }
 });
 
-app.get("/api/health", (c) => c.json({ ok: true, elevenlabs: Boolean(apiKey(c)) }));
+app.get("/api/health", (c) =>
+  c.json({
+    ok: true,
+    elevenlabs: Boolean(apiKey(c)),
+    // The UI hides the second-opinion button when this is false.
+    llmEvaluator: Boolean(secret(c, "ANTHROPIC_API_KEY")),
+  }),
+);

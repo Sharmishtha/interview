@@ -61,20 +61,23 @@ recording duration are both already in hand, so this is arithmetic.
 - **Trade-off:** delivery is easier to measure than substance, so it will attract
   more attention than it deserves. Keep it as a side panel, never in the composite.
 
-### 4. LLM evaluator — 3–4 days
+### 4. LLM evaluator — shipped as a second opinion, not yet as a replacement
 
-Closes the two documented holes: `keyword-stuffed` scores **8.36** today and
-`fake-humility` **6.29**. Neither is fixable with pattern matching, because both
-are fluent — the problem is that they mean nothing.
+The scoring half is built: `LlmEvaluator` implements the same `Evaluator`
+interface as the heuristic and is served from `POST /api/score/llm`, behind an
+`ANTHROPIC_API_KEY` that a deployment may simply not have.
 
-- **Build:** implement the existing `Evaluator` interface, so it drops in behind
-  the heuristic with no other changes. Must cite spans; a test already asserts
-  every span appears verbatim in the answer, which is what stops invented evidence.
-- **Payoff:** judges whether the strategy described was actually sound — something
-  no regex reaches.
-- **Trade-off:** per-scoring cost, non-deterministic scores, and it must be proven
-  against the eval corpus before replacing the heuristic. Keep the heuristic as the
-  offline fallback.
+- **Done:** a real Claude call returning a schema-checked score per dimension.
+  Every quote it cites is located in the answer and dropped if it is not there
+  verbatim, so a model cannot invent evidence by paraphrase — the same span
+  invariant the heuristic holds.
+- **Still open:** it has never been run against the eval corpus, because that
+  costs money per case and produces non-deterministic scores. Until it beats
+  `keyword-stuffed` (7.07 today) and `fake-humility` (5.47) *repeatably*, it stays
+  a second opinion shown beside the free score, never the score itself.
+- **Trade-off:** per-scoring cost and latency. The heuristic remains the default
+  and the offline fallback, which is what makes the paid tier optional rather than
+  load-bearing.
 
 ### 5. Onboarding and empty states — 1–2 days
 

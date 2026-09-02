@@ -188,6 +188,7 @@ npm run dev                                     # API on :3001, UI on :5173
 npx wrangler login                              # opens a browser, click Allow
 npx wrangler secret put ELEVENLABS_API_KEY      # paste the same key
 npx wrangler secret put APP_PASSWORD            # gates the deployed app
+npx wrangler secret put ANTHROPIC_API_KEY       # optional: the second-opinion score
 npm run deploy                                  # prints your live URL
 ```
 
@@ -232,10 +233,13 @@ Get one from [elevenlabs.io](https://elevenlabs.io) → your profile → **API K
 cp .env.example .env
 ```
 
-Open `.env` and fill it in — the whole file is one line:
+Open `.env` and fill it in:
 
 ```
 ELEVENLABS_API_KEY=sk_your_key_here
+
+# Optional. Enables the second-opinion score; everything else works without it.
+ANTHROPIC_API_KEY=sk-ant-your_key_here
 ```
 
 `.env` is listed in `.gitignore`, so it is never committed. The key is read by the server only
@@ -372,6 +376,7 @@ Until you have a domain on the account, the password gate above is the control t
 | `Status code: 401` / `invalid_api_key` | The key is wrong, revoked, or has trailing whitespace. Check for a stray quote — the value needs no quotes. |
 | `Host not in allowlist` or a proxy 403 | Your network is blocking `api.elevenlabs.io`, usually a corporate proxy or VPN. The key is fine; the request never left your machine. |
 | `Status code: 429` | ElevenLabs rate limit or an exhausted character quota on your plan. |
+| `The second-opinion evaluator is not configured` | No `ANTHROPIC_API_KEY`. The ordinary score is unaffected — that evaluator needs no key and never calls out. |
 | Question text appears but no audio | Browser autoplay blocking. Press **Replay**; a click counts as the gesture browsers require. |
 | **Record answer** is greyed out | The browser exposes no recorder. Use **Type instead**, and check you are on `localhost` rather than a LAN IP. |
 | Microphone permission never prompts | Same secure-origin rule — use `http://localhost:5173`. |
