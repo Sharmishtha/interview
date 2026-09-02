@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { questionById } from "../src/questions/bank.js";
+import { dimensions } from "../src/rubric/dimensions.js";
 import type { DimensionId, DimensionScore } from "../src/types.js";
 
 const evaluator = new HeuristicEvaluator();
@@ -24,11 +25,9 @@ moved six months earlier - I underestimated the cost of the delay.
 `;
 
 describe("HeuristicEvaluator", () => {
-  it("scores all six dimensions", async () => {
+  it("scores every dimension in the rubric", async () => {
     const scores = await evaluator.evaluate(question, EVIDENCED);
-    expect(scores.map((s) => s.dimension).sort()).toEqual(
-      ["ownership", "quantified-outcomes", "learning", "scope-scale", "specificity", "star-structure"].sort(),
-    );
+    expect(scores.map((s) => s.dimension).sort()).toEqual(dimensions.map((d) => d.id).sort());
   });
 
   it("keeps every score within 0-10", async () => {
@@ -115,5 +114,42 @@ describe("signals the narrower patterns used to miss", () => {
 
   it("still reports no learning when an answer genuinely has none", async () => {
     expect(await learning("We shipped it, it went well, and the team was proud.")).toBeLessThan(3);
+  });
+});
+
+describe("story shape and memorability", () => {
+  const dim = async (answer: string, id: DimensionId) =>
+    valueOf(await evaluator.evaluate(question, answer), id);
+
+  const STORY = `I remember the Tuesday. When I joined in 2021 we were at 14 incidents a quarter.
+    But then I pulled the data and found the programme had shipped nothing in two years.
+    Anders said to me, "you have been here four months." I killed it anyway.`;
+  const SUMMARY = `I was asked to reduce incidents. Analysis of the delivery data showed one
+    programme was not shipping customer value. I recommended cancelling it and the sponsor
+    initially disagreed. Incidents subsequently fell.`;
+
+  it("rates the same facts higher when they are told as a story", async () => {
+    expect(await dim(STORY, "story-shape")).toBeGreaterThan(await dim(SUMMARY, "story-shape"));
+    expect(await dim(STORY, "memorability")).toBeGreaterThan(await dim(SUMMARY, "memorability"));
+  });
+
+  it("credits a quoted line as something only this person could have said", async () => {
+    // Long enough to clear the short-answer cap - a memorable answer has to be a
+    // real answer first.
+    const quoted = `When I joined Halden in 2021 the board was split on the platform programme
+      and nobody wanted to be the one to say it. Anders said to me, "you have been here four
+      months, and you want to cancel my programme." He was not wrong about the four months. I
+      decided to show him the delivery numbers anyway, in front of the room, and we killed it
+      that afternoon. Priya took over what was left of the team.`;
+    expect(await dim(quoted, "memorability")).toBeGreaterThan(5);
+  });
+
+  it("does not credit a story it cannot see", async () => {
+    expect(await dim("We executed the plan and delivered the outcome.", "story-shape")).toBeLessThan(4);
+    expect(await dim("We executed the plan and delivered the outcome.", "memorability")).toBeLessThan(4);
+  });
+
+  it("caps both on an answer too short to tell anything", async () => {
+    expect(await dim("But then it went wrong. I remember.", "story-shape")).toBeLessThanOrEqual(3.5);
   });
 });

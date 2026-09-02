@@ -52,6 +52,16 @@ function suggestionFor(score: DimensionScore, answer: string): string {
     case "learning":
       return "Close with the Learning. What did this teach you, and what would you do differently? Several principles list this explicitly as a positive signal, and leaving it out reads as an inability to grow from the experience.";
 
+    case "story-shape":
+      return score.rationale.includes("no scene")
+        ? "You have the turn but not the moment. Put the interviewer in the room for one sentence - where you were, who was there, what was said - then let the turn land."
+        : score.rationale.includes("summary")
+          ? "This is a summary, not a story. Find the moment something went wrong or changed on you, and build the answer around that turn rather than listing what happened in order."
+          : "Sharpen the turn: name the point where it stopped going to plan.";
+
+    case "memorability":
+      return "Add one detail nobody else could have supplied - the name of the person who pushed back, a line someone actually said, an odd specific like 'a 2-second granularity across millions of devices'. The interviewer will forget your competencies by Friday; they will still be able to retell the detail, and that is what they argue from in the debrief.";
+
     case "star-structure": {
       const found = starElements(answer);
       const missing = STAR_ELEMENTS.filter((element) => found[element].length === 0);

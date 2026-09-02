@@ -145,6 +145,46 @@ const RESULT_PATTERNS = [
   /\bwithin \d+\s?(?:days|weeks|months|quarters|years)\b/gi,
 ];
 
+/**
+ * A story has a turn in it - something went wrong, changed, or surprised them.
+ * A summary just lists what happened in order.
+ */
+const TURN_PATTERNS = [
+  /\bbut then\b/gi,
+  /\bwhat (?:we|i) (?:did ?n[o']t|didn't) (?:know|expect|see)\b/gi,
+  /\bthe problem was\b/gi,
+  /\bthat (?:all )?changed when\b/gi,
+  /\bhalfway through\b/gi,
+  /\bthen (?:everything|it all|things)\b/gi,
+  /\buntil\b[^.]{0,30}\b(?:broke|failed|walked|quit|called|resigned)\b/gi,
+  /\bwent wrong\b/gi,
+  /\bblew up\b/gi,
+  /\bnobody (?:expected|saw)\b/gi,
+  /\bto my surprise\b/gi,
+  /\bwhat i had ?n[o']?t\b/gi,
+];
+
+/** Scene-setting: a specific moment rather than a general period. */
+const SCENE_PATTERNS = [
+  /\bon (?:a |the )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+  /\bthat (?:morning|afternoon|evening|night|week|day)\b/gi,
+  /\bi remember\b/gi,
+  /\bi walked (?:in|into|out)\b/gi,
+  /\bsat (?:down |there )?(?:with|across)\b/gi,
+  /\bin the room\b/gi,
+  /\bpicked up the phone\b/gi,
+  /\bthe first thing i (?:did|said)\b/gi,
+];
+
+/** Something only this person could have said - the retellable detail. */
+const VIVID_PATTERNS = [
+  /\b(?:told|said to|asked) (?:me|him|her|them)\b/gi,
+  /\bhe (?:said|told|asked)\b|\bshe (?:said|told|asked)\b|\bthey (?:said|told|asked)\b/gi,
+  /"[^"]{8,120}"/g,
+  /\bcalled it\b/gi,
+  /\bthe (?:joke|line|phrase|nickname) was\b/gi,
+];
+
 const FIRST_SINGULAR = /\b(?:i|my|me)\b/gi;
 const FIRST_PLURAL = /\b(?:we|our|us)\b/gi;
 
@@ -246,6 +286,8 @@ export class HeuristicEvaluator implements Evaluator {
       this.quantifiedOutcomes(answer),
       this.learning(answer),
       this.starStructure(answer),
+      this.storyShape(answer),
+      this.memorability(answer),
     ];
   }
 
@@ -362,6 +404,58 @@ export class HeuristicEvaluator implements Evaluator {
       rationale,
       present.flatMap((element) => found[element]),
     );
+  }
+
+  /**
+   * A story has a turn in it. Detecting one lexically is genuinely hard - this
+   * looks for the language people use when something changed on them, and for
+   * scene-setting that places the listener at a moment rather than over a
+   * period. It will miss a well-told story that uses none of these words, which
+   * is squarely the kind of judgement a semantic evaluator makes better.
+   */
+  private storyShape(answer: string): DimensionScore {
+    const turns = findSpans(answer, TURN_PATTERNS);
+    const scenes = findSpans(answer, SCENE_PATTERNS);
+    const words = wordCount(answer);
+
+    let value = 2.5 + Math.min(turns.length, 2) * 2.6 + Math.min(scenes.length, 2) * 1.5;
+    if (words < 60) value = Math.min(value, 3.5);
+
+    const rationale = turns.length
+      ? scenes.length
+        ? `Told as a story: a turn ("${turns[0].text.trim()}") and a scene to place it in.`
+        : `There is a turn ("${turns[0].text.trim()}"), but no scene - the listener is told about it rather than put in it.`
+      : scenes.length
+        ? "Sets a scene, but nothing goes wrong or changes - it reads as a summary of what happened."
+        : "Reads as a summary rather than a story: no moment where something changed or went wrong.";
+
+    return score("story-shape", value, rationale, [...turns, ...scenes]);
+  }
+
+  /**
+   * Would the interviewer still be able to retell this next week? What survives
+   * is the odd specific - a named person, a quoted line, a number nobody would
+   * invent - not the competency being demonstrated.
+   */
+  private memorability(answer: string): DimensionScore {
+    const vivid = findSpans(answer, VIVID_PATTERNS);
+    const named = properNounSpans(answer);
+    const odd = findSpans(answer, METRIC_PATTERNS);
+
+    const distinct = Math.min(named.length, 4) + Math.min(vivid.length, 3) * 1.5;
+    let value = 1.5 + distinct * 1.1 + Math.min(odd.length, 3) * 0.5;
+    if (wordCount(answer) < 60) value = Math.min(value, 3);
+
+    const held: string[] = [];
+    if (named.length) held.push(`${named.length} named ${named.length === 1 ? "person or place" : "people or places"}`);
+    if (vivid.length) held.push("someone actually speaking");
+    if (odd.length) held.push("a figure that sticks");
+
+    const rationale = held.length
+      ? `Retellable: ${list(held)}.`
+      : "Nothing here that only you could have said - no names, no quoted line, no odd specific. It will blur into the other candidates.";
+
+    return score("memorability", value, rationale, [...vivid, ...named.slice(0, 4)]);
   }
 }
 

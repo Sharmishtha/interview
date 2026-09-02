@@ -9,6 +9,8 @@ const SHORT: Record<DimensionId, string> = {
   "quantified-outcomes": "quant",
   learning: "learn",
   "star-structure": "starl",
+  "story-shape": "story",
+  memorability: "memo",
 };
 
 async function main(): Promise<void> {

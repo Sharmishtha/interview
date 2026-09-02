@@ -22,11 +22,18 @@ export interface EvalCase {
   knownLimitation?: string;
 }
 
-/** Expected composite range for each tier, used for aggregate separation checks. */
+/**
+ * Expected composite range for each tier.
+ *
+ * Recalibrated when story shape and memorability were added. Most answers -
+ * including well-built strong ones - are summaries rather than stories, so those
+ * two dimensions pulled every composite down. Separation and ordering are what
+ * the suite protects; the absolute numbers move whenever the rubric does.
+ */
 export const tierBounds: Record<Tier, { min: number; max: number }> = {
-  weak: { min: 0, max: 4.5 },
-  mixed: { min: 3.5, max: 7.5 },
-  strong: { min: 6.5, max: 10 },
+  weak: { min: 0, max: 4.0 },
+  mixed: { min: 3.0, max: 6.5 },
+  strong: { min: 5.8, max: 10 },
 };
 
 export const evalCases: EvalCase[] = [
@@ -39,7 +46,7 @@ export const evalCases: EvalCase[] = [
     tier: "weak",
     note: "Pure leadership philosophy with no situation, no numbers, no arc. The floor case.",
     expect: {
-      compositeMax: 4,
+      compositeMax: 3.6,
       dimensions: { specificity: { max: 2 }, "quantified-outcomes": { max: 2 } },
     },
     answer: `
@@ -62,7 +69,7 @@ of the day the team delivered what mattered most to the company.
     questionId: "build-resilience",
     tier: "weak",
     note: "Every failure belongs to another function. Should score near the floor on learning.",
-    expect: { compositeMax: 4.5, dimensions: { learning: { max: 3 } } },
+    expect: { compositeMax: 4.0, dimensions: { learning: { max: 3 } } },
     answer: `
 Honestly that one was not really an engineering problem. Product kept changing the
 requirements on us and sales had already promised the customer a date nobody in
@@ -122,7 +129,7 @@ to roughly 19% of revenue.
     questionId: "build-resilience",
     tier: "mixed",
     note: "Real substance buried in an unfocused narrative. Structure should be penalised.",
-    expect: { compositeMax: 7.5 },
+    expect: { compositeMax: 6.5 },
     answer: `
 So there is a lot to say here. We grew a lot, I think we went from something like 60
 engineers to maybe 190 over about two years, though the exact numbers moved around
@@ -159,7 +166,7 @@ down from 12 a quarter to 2. I should have started sooner, that is on me.
     questionId: "makes-smart-decisions",
     tier: "strong",
     note: "The reference strong answer: named situation, scale, rejected alternative, numbers, hindsight.",
-    expect: { compositeMin: 7.5 },
+    expect: { compositeMin: 7.0 },
     answer: `
 When I took over the platform group in 2021 we were running a single Rails monolith
 serving 40 million monthly actives with an org of 180 engineers, and deploys had
@@ -178,7 +185,7 @@ is that compliance surface belongs in the sequencing decision, not the rollout p
     questionId: "act-with-courage",
     tier: "strong",
     note: "Owns a public-company miss with escalation timing and the systemic fix.",
-    expect: { compositeMin: 7 },
+    expect: { compositeMin: 6.4 },
     answer: `
 We committed to shipping the billing migration by the end of Q3 in 2023, and it was
 in the guidance the CEO gave the street. When I took over the tracking I saw in week
@@ -196,7 +203,7 @@ green suite before it goes into a quarterly plan.
     questionId: "grow-groundbreakers",
     tier: "strong",
     note: "Structure with a rationale, real numbers on span and attrition, an owned bad hire.",
-    expect: { compositeMin: 7 },
+    expect: { compositeMin: 6.4 },
     answer: `
 When I arrived in 2020 we had 140 engineers in 6 teams with managers carrying 23
 reports each, and regretted attrition was running at 19%. I restructured into 14
@@ -214,7 +221,7 @@ and looking back I should have moved 4 months sooner than I did.
     questionId: "lead-across",
     tier: "strong",
     note: "Translates a technical investment into business language with a number attached.",
-    expect: { compositeMin: 6.5 },
+    expect: { compositeMin: 6.0 },
     answer: `
 I would not lead with the architecture. When I made this case at Halden in 2022 I
 opened with the fact that we were spending 34% of engineering capacity on work that
@@ -224,6 +231,52 @@ capacity by 2024 without hiring them. I decided to bring 3 scenarios rather than
 ask, and our chair pushed hard on the middle one. In hindsight I should have brought
 the do-nothing cost curve to the first meeting rather than the second - I
 underestimated how much the board needed to see the downside quantified.
+`,
+  },
+
+  // -------------------------------------------------------------------------
+  // Story shape and memorability: the same facts, told two ways
+  // -------------------------------------------------------------------------
+  {
+    id: "told-as-story",
+    questionId: "act-with-courage",
+    tier: "strong",
+    note: "A scene, a turn, and a line someone actually said. Same facts as told-as-summary below.",
+    expect: {
+      compositeMin: 6.2,
+      dimensions: { "story-shape": { min: 6 }, memorability: { min: 6 } },
+    },
+    answer: `
+I remember the Tuesday, because Anders had booked the room for a roadmap review
+and I used it to tell him his flagship programme was dead. When I joined Halden
+in 2021 I was asked to get the platform back to weekly releases. We were at 14
+Sev1 incidents a quarter across 40 million monthly actives. But then I pulled the
+delivery data and found the programme he had championed for two years was
+consuming 60% of the platform team and had shipped nothing to a customer. He
+said to me, "you have been here four months." That was fair, and I said so, and
+then I showed him the numbers anyway. As a result we killed it and moved 18
+engineers onto reliability. Sev1s fell from 14 a quarter to 3 within 8 months.
+In hindsight I should have brought him the data before the meeting rather than
+in it - I underestimated how much the ambush cost us afterwards.
+`,
+  },
+  {
+    id: "told-as-summary",
+    questionId: "act-with-courage",
+    tier: "mixed",
+    note: "Identical facts to told-as-story, flattened into a competent summary. Must score materially lower on story shape and memorability.",
+    expect: {
+      dimensions: { "story-shape": { max: 4.5 }, memorability: { max: 6 } },
+    },
+    answer: `
+I was asked to return the platform to weekly releases. We were running 14 Sev1
+incidents a quarter across 40 million monthly actives. My analysis of the
+delivery data showed that one long-running programme was consuming 60% of the
+platform team without shipping customer value. I recommended cancelling it and
+reallocating 18 engineers to reliability work. The programme sponsor disagreed
+initially, citing my short tenure, but the data supported the decision. As a
+result Sev1 incidents fell from 14 a quarter to 3 within 8 months. In hindsight I
+should have socialised the analysis before the review rather than during it.
 `,
   },
 

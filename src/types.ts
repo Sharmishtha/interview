@@ -59,7 +59,9 @@ export type DimensionId =
   | "ownership"
   | "quantified-outcomes"
   | "learning"
-  | "star-structure";
+  | "star-structure"
+  | "story-shape"
+  | "memorability";
 
 export interface EvidenceDimension {
   id: DimensionId;
@@ -102,8 +104,10 @@ export interface InterviewQuestion {
    * "guide" questions are the interview guide's own top-line questions.
    * "pressure" questions are harder variants on the same competency: each one
    * requires owning a failure, which is where the negative signals show up.
+   * "custom" questions are written by the candidate to rehearse something
+   * specific they expect to be asked.
    */
-  intensity: "guide" | "pressure";
+  intensity: "guide" | "pressure" | "custom";
 }
 
 // ---------------------------------------------------------------------------

@@ -2,13 +2,14 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { executivePanel, panelistById } from "../src/panel/panelist.js";
 import { questionById, selectQuestions } from "../src/questions/bank.js";
+import { createCustomQuestion, CustomQuestionError } from "../src/questions/custom.js";
 import { competencies, pillars } from "../src/rubric/competencies.js";
 import { dimensions } from "../src/rubric/dimensions.js";
 import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { buildScorecard, scoreAnswers } from "../src/scoring/scorer.js";
 import { synthesize } from "../src/tts/elevenlabs.js";
 import { transcribe } from "../src/stt/elevenlabs.js";
-import type { AnswerRecord, InterviewSession } from "../src/types.js";
+import type { AnswerRecord, InterviewQuestion, InterviewSession } from "../src/types.js";
 
 export interface Env {
   ELEVENLABS_API_KEY?: string;
@@ -108,17 +109,39 @@ app.post("/api/stt", async (c) => {
 /** Scores a completed set of answers and returns the scorecard. */
 app.post("/api/score", async (c) => {
   try {
-    const { candidateName, answers } = await c.req.json<{
+    const { candidateName, answers, customQuestions } = await c.req.json<{
       candidateName?: string;
       answers?: AnswerRecord[];
+      /** Questions the candidate wrote, which the bank has never heard of. */
+      customQuestions?: InterviewQuestion[];
     }>();
 
     if (!Array.isArray(answers) || answers.length === 0) {
       return c.json({ error: "answers is required" }, 400);
     }
 
+    // A custom question is rebuilt here rather than trusted as sent: the client
+    // could otherwise post arbitrary text as a question and have it scored.
+    const custom = new Map<string, InterviewQuestion>();
+    for (const supplied of customQuestions ?? []) {
+      try {
+        const rebuilt = createCustomQuestion({
+          text: supplied?.text ?? "",
+          competency: supplied?.competency,
+          askedBy: supplied?.askedBy,
+          id: supplied?.id,
+        });
+        custom.set(rebuilt.id, rebuilt);
+      } catch (error) {
+        if (error instanceof CustomQuestionError) {
+          return c.json({ error: error.message }, 400);
+        }
+        throw error;
+      }
+    }
+
     const questions = answers
-      .map((a) => questionById.get(a.questionId))
+      .map((a) => questionById.get(a.questionId) ?? custom.get(a.questionId))
       .filter((q): q is NonNullable<typeof q> => Boolean(q));
 
     if (questions.length !== answers.length) {
@@ -137,6 +160,47 @@ app.post("/api/score", async (c) => {
     const answerScores = await scoreAnswers(session, new HeuristicEvaluator());
     return c.json(buildScorecard(session, answerScores));
   } catch (error) {
+    return c.json({ error: message(error) }, 500);
+  }
+});
+
+/**
+ * Builds a one-question interview from something the candidate wrote, for
+ * rehearsing a specific question they expect to be asked.
+ */
+app.post("/api/custom-question", async (c) => {
+  try {
+    const { text, competency, askedBy } = await c.req.json<{
+      text?: string;
+      competency?: string;
+      askedBy?: string;
+    }>();
+
+    const question = createCustomQuestion({
+      text: text ?? "",
+      competency: (competency ?? "be-real") as never,
+      askedBy,
+    });
+
+    return c.json({
+      panelists: executivePanel,
+      questions: [question],
+      rubric: {
+        pillars,
+        competencies: competencies.map(({ id, name, pillar, description, positiveSignals }) => ({
+          id,
+          name,
+          pillar,
+          description,
+          positiveSignals,
+        })),
+        dimensions,
+      },
+    });
+  } catch (error) {
+    if (error instanceof CustomQuestionError) {
+      return c.json({ error: error.message }, 400);
+    }
     return c.json({ error: message(error) }, 500);
   }
 });
