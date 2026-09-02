@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
+import { PRINCIPLE_GROUPS } from "./principles";
 import * as storage from "./storage";
 import { useRecorder } from "./useRecorder";
 import type {
@@ -23,8 +24,6 @@ export default function App() {
   const [kind, setKind] = useState<Kind>("guide");
   const [answers, setAnswers] = useState<AnswerRecord[]>([]);
   const [scorecard, setScorecard] = useState<Scorecard | null>(null);
-  /** Which evaluator produced the score on screen. Never left implicit. */
-  const [scoredBy, setScoredBy] = useState<"heuristic" | "llm">("heuristic");
   const [error, setError] = useState<string | null>(null);
   /** The stored attempt being re-read, if any. */
   const [pastId, setPastId] = useState<string | null>(null);
@@ -75,25 +74,11 @@ export default function App() {
   const reveal = useCallback(async () => {
     setScreen("scoring");
     try {
-      // A question someone wrote for themselves is usually the one pattern
-      // matching handles worst: it is specific, and often story-shaped. So a
-      // custom question is scored by the model where one is configured, and
-      // falls back to the free evaluator where it is not.
-      let card: Scorecard | null = null;
-
-      if (kind === "custom" && (await api.capabilities()).llmScoring) {
-        try {
-          card = await api.secondOpinion(candidateName, answers, customQuestions);
-        } catch {
-          // Rate limited, key rejected, model down. The free evaluator needs no
-          // key, so a paid-path failure must never cost someone their answers.
-          card = null;
-        }
-      }
-
-      const scored = card ?? (await api.score(candidateName, answers, customQuestions));
+      // Always the free evaluator. It is deterministic, instant, costs nothing
+      // and needs no key, which makes it the right default for every answer.
+      // A model score is a deliberate second step behind its own button.
+      const scored = await api.score(candidateName, answers, customQuestions);
       setScorecard(scored);
-      setScoredBy(card ? "llm" : "heuristic");
       storage.saveAttempt(scored, interview?.questions ?? [], kind, answers);
       setScreen("report");
     } catch (cause) {
@@ -155,7 +140,6 @@ export default function App() {
         candidateName={candidateName}
         answers={answers}
         customQuestions={customQuestions}
-        scoredBy={scoredBy}
         onRestart={() => setScreen("setup")}
       />
     );
@@ -413,7 +397,6 @@ function PastAttempt({ id, onBack }: { id: string; onBack: () => void }) {
       candidateName={entry.candidateName}
       answers={entry.answers ?? []}
       customQuestions={[]}
-      scoredBy="heuristic"
       readOnly={{ at: entry.at, onBack }}
       onRestart={onBack}
     />
@@ -456,25 +439,11 @@ function Compose({
   onCancel: () => void;
   onReady: (name: string, interview: Interview) => void;
 }) {
-  const [rubric, setRubric] = useState<Interview["rubric"] | null>(null);
   const [text, setText] = useState("");
   const [competency, setCompetency] = useState("");
   const [askedBy, setAskedBy] = useState("cto");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // The principle list lives with the rubric on the server, so it stays in step
-  // with the guide rather than being copied into the frontend.
-  useEffect(() => {
-    let live = true;
-    void api
-      .fetchInterview()
-      .then((interview) => live && setRubric(interview.rubric))
-      .catch(() => live && setError("Could not load the list of principles."));
-    return () => {
-      live = false;
-    };
-  }, []);
 
   const submit = async () => {
     setBusy(true);
@@ -514,37 +483,42 @@ function Compose({
           <span className="field__hint">{400 - text.length} characters left</span>
         </label>
 
-        <label className="field">
+        <div className="field">
           <span className="field__label">Score it against</span>
-          <select
-            className="input select"
-            value={competency}
-            onChange={(event) => setCompetency(event.target.value)}
-          >
-            <option value="">Choose a principle…</option>
-            {(rubric?.pillars ?? []).map((pillar) => (
-              <optgroup key={pillar.id} label={pillar.name}>
-                {(rubric?.competencies ?? [])
-                  .filter((c) => c.pillar === pillar.id)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-          </select>
-          <span className="field__hint">
+          <span className="field__hint field__hint--above">
             The same answer reads differently depending on what the interviewer was listening for.
           </span>
-        </label>
+          {/* Every option on screen at once. This used to be a dropdown that
+              could not render until a request landed, which meant it sometimes
+              rendered empty; the list is nine short strings that change roughly
+              never, so it ships in the bundle instead. */}
+          {PRINCIPLE_GROUPS.map((group) => (
+            <div className="pgroup" key={group.pillar}>
+              <span className="pgroup__name">{group.name}</span>
+              <div className="pgrid">
+                {group.principles.map((principle) => (
+                  <button
+                    key={principle.id}
+                    type="button"
+                    className={`pcard ${competency === principle.id ? "pcard--on" : ""}`}
+                    aria-pressed={competency === principle.id}
+                    onClick={() => setCompetency(principle.id)}
+                  >
+                    <span className="pcard__name">{principle.name}</span>
+                    <span className="pcard__about">{principle.about}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
 
-        <label className="field">
+        <div className="field">
           <span className="field__label">Who asks it</span>
           <div className="choices">
             {[
-              ["cto", "Ravi Menon · CTO"],
-              ["ceo", "Claire Whitfield · CEO"],
+              ["cto", "Ravi Menon \u00b7 CTO"],
+              ["ceo", "Claire Whitfield \u00b7 CEO"],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -556,7 +530,7 @@ function Compose({
               </button>
             ))}
           </div>
-        </label>
+        </div>
 
         <div className="controls__row">
           <button
@@ -564,7 +538,7 @@ function Compose({
             disabled={!ready || busy}
             onClick={() => void submit()}
           >
-            {busy ? "Setting it up…" : "Ask me this"}
+            {busy ? "Setting it up\u2026" : "Ask me this"}
           </button>
           <button className="button button--ghost" onClick={onCancel}>
             Back
@@ -985,7 +959,6 @@ function Report({
   candidateName,
   answers,
   customQuestions,
-  scoredBy,
   readOnly,
   onRestart,
 }: {
@@ -994,7 +967,6 @@ function Report({
   candidateName: string;
   answers: AnswerRecord[];
   customQuestions: Question[];
-  scoredBy: "heuristic" | "llm";
   /** Set when re-reading a stored attempt: no re-scoring, no spending. */
   readOnly?: { at: string; onBack: () => void };
   onRestart: () => void;
@@ -1082,11 +1054,6 @@ function Report({
           <p className="provenance">
             Re-reading your attempt from {shortDate(readOnly.at)}. Nothing here is re-scored, so the
             numbers are exactly what you saw on the day.
-          </p>
-        ) : scoredBy === "llm" ? (
-          <p className="provenance">
-            This one was read by the model rather than pattern-matched, because you wrote the
-            question yourself.
           </p>
         ) : (
           <SecondOpinionPanel

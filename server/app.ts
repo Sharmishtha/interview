@@ -52,21 +52,19 @@ function apiKey(c: Ctx): string {
 }
 
 /**
- * Whether this deployment offers the paid second opinion.
+ * Whether this deployment offers the model evaluator.
  *
- * Two independent levers, because they answer different questions. No
- * ANTHROPIC_API_KEY means no model call happens at all, anywhere. A key with
- * SECOND_OPINION unset means the model still scores questions a candidate wrote
- * for themselves - which is the case pattern matching handles worst - but the
- * paid panel is not offered. Production ships with the panel off.
+ * Two conditions, both required. No ANTHROPIC_API_KEY means no model call can
+ * happen at all. SECOND_OPINION anything but the exact string "on" means the
+ * deployment has a key but does not offer the feature - production ships that
+ * way, so a key can sit there for staging parity without putting a paid button
+ * in front of anyone.
+ *
+ * Nothing else reaches a model. Every answer is scored by the free evaluator
+ * first; this is the second step, and it only happens when someone asks for it.
  */
 function secondOpinionOffered(c: Ctx): boolean {
   return Boolean(secret(c, "ANTHROPIC_API_KEY")) && secret(c, "SECOND_OPINION") === "on";
-}
-
-/** A question the bank has never heard of is one the candidate wrote. */
-function isCustomOnly(session: InterviewSession): boolean {
-  return session.questions.length > 0 && session.questions.every((q) => !questionById.has(q.id));
 }
 
 function message(error: unknown): string {
@@ -226,6 +224,12 @@ app.post("/api/score", async (c) => {
  * slow, so it happens only when the candidate asks for it.
  */
 app.post("/api/score/llm", async (c) => {
+  // Checked before the body is even read. Hiding a button stops nobody from
+  // posting to a route, so the switch has to live here.
+  if (!secondOpinionOffered(c)) {
+    return c.json({ error: "The second opinion is not available on this deployment." }, 503);
+  }
+
   const evaluator = llmEvaluatorFor(secret(c, "ANTHROPIC_API_KEY"));
   if (!evaluator) {
     return c.json({ error: "Model scoring is not configured on this deployment." }, 503);
@@ -234,13 +238,6 @@ app.post("/api/score/llm", async (c) => {
   try {
     const session = sessionFrom(await c.req.json<ScoreRequest>());
     if (isRefusal(session)) return c.json({ error: session.error }, session.status);
-
-    // Where the paid panel is off, this route still scores questions the
-    // candidate wrote and nothing else. Enforced here rather than by hiding a
-    // button: the button is client-side, and anyone can post to a route.
-    if (!secondOpinionOffered(c) && !isCustomOnly(session)) {
-      return c.json({ error: "The second opinion is not available on this deployment." }, 403);
-    }
 
     const byId = new Map(session.questions.map((q) => [q.id, q]));
     const reviews = await Promise.all(
@@ -330,9 +327,7 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     elevenlabs: Boolean(apiKey(c)),
-    /** Whether a custom question can be scored by the model. */
-    llmScoring: Boolean(secret(c, "ANTHROPIC_API_KEY")),
-    /** Whether the paid second-opinion panel is offered. The UI hides it otherwise. */
+    /** Whether the second-opinion button is offered. The UI hides it otherwise. */
     secondOpinion: secondOpinionOffered(c),
   }),
 );

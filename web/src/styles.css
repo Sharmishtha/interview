@@ -1190,23 +1190,6 @@ body {
   line-height: 1.45;
 }
 
-.select {
-  appearance: none;
-  cursor: pointer;
-  /* Room for the chevron, which is painted rather than shipped as an asset. */
-  padding-right: 46px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 24px) 25px,
-    calc(100% - 18px) 25px;
-  background-size:
-    6px 6px,
-    6px 6px;
-  background-repeat: no-repeat;
-}
-
 .choices {
   display: flex;
   gap: 10px;
@@ -1526,4 +1509,112 @@ body {
   background: var(--surface);
   border-radius: var(--card);
   padding: 16px 18px;
+}
+
+/* --- brand --------------------------------------------------------------- */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.logo__mark {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.logo__word {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+/* "loud" carries no colour of its own - the weight break is enough separation
+   and keeps the wordmark legible at favicon-adjacent sizes. */
+.logo__word2 {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.logo--muted .logo__mark {
+  color: var(--faint);
+}
+
+.logo--muted .logo__word,
+.logo--muted .logo__word2 {
+  color: var(--faint);
+}
+
+/* --- picking a principle -------------------------------------------------- */
+
+.field__hint--above {
+  margin: -4px 0 12px;
+}
+
+.pgroup {
+  margin-bottom: 18px;
+}
+
+.pgroup__name {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+
+.pgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.pcard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.pcard:hover:not(.pcard--on) {
+  background: var(--surface);
+}
+
+.pcard:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.pcard--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pcard__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pcard--on .pcard__name {
+  color: var(--accent-dark);
+}
+
+.pcard__about {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
 }

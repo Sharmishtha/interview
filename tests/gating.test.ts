@@ -67,16 +67,16 @@ beforeEach(() => {
 });
 
 describe("what /api/health advertises", () => {
-  it("separates model scoring from the paid panel", async () => {
+  it("offers the second opinion only with a key and the flag on", async () => {
     const body = await (
       await app.fetch(new Request("http://localhost/api/health"), OFFERED)
     ).json();
-    expect(body).toMatchObject({ llmScoring: true, secondOpinion: true });
+    expect(body.secondOpinion).toBe(true);
   });
 
-  it("keeps the panel off where the flag is not set, even with a key", async () => {
+  it("keeps it off where the flag is not set, even with a key", async () => {
     const body = await (await app.fetch(new Request("http://localhost/api/health"), KEYED)).json();
-    expect(body).toMatchObject({ llmScoring: true, secondOpinion: false });
+    expect(body.secondOpinion).toBe(false);
   });
 
   it("fails closed on a value that is not exactly on", async () => {
@@ -88,7 +88,7 @@ describe("what /api/health advertises", () => {
   });
 });
 
-describe("the second opinion, with the panel switched off", () => {
+describe("with the second opinion switched off", () => {
   it("refuses a bank interview, because posting to a route needs no button", async () => {
     const response = await post(
       "/api/score/llm",
@@ -96,11 +96,11 @@ describe("the second opinion, with the panel switched off", () => {
       KEYED,
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(503);
     expect(parse).not.toHaveBeenCalled();
   });
 
-  it("still scores a question the candidate wrote, which is a different feature", async () => {
+  it("refuses a custom question too - it is one button, not a back door", async () => {
     const response = await post(
       "/api/score/llm",
       {
@@ -110,29 +110,12 @@ describe("the second opinion, with the panel switched off", () => {
       KEYED,
     );
 
-    expect(response.status).toBe(200);
-    expect(parse).toHaveBeenCalledTimes(1);
-  });
-
-  it("refuses a bank question smuggled in beside a custom one", async () => {
-    const response = await post(
-      "/api/score/llm",
-      {
-        answers: [
-          { questionId: CUSTOM.id, answer: ANSWER, turns: [] },
-          { questionId: BANK_ID, answer: ANSWER, turns: [] },
-        ],
-        customQuestions: [CUSTOM],
-      },
-      KEYED,
-    );
-
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(503);
     expect(parse).not.toHaveBeenCalled();
   });
 });
 
-describe("the second opinion, with the panel switched on", () => {
+describe("with the second opinion switched on", () => {
   it("scores a bank interview", async () => {
     const response = await post(
       "/api/score/llm",
@@ -141,6 +124,20 @@ describe("the second opinion, with the panel switched on", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+
+  it("scores a question the candidate wrote", async () => {
+    const response = await post(
+      "/api/score/llm",
+      {
+        answers: [{ questionId: CUSTOM.id, answer: ANSWER, turns: [] }],
+        customQuestions: [CUSTOM],
+      },
+      OFFERED,
+    );
+
+    expect(response.status).toBe(200);
+    expect(parse).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -158,7 +155,7 @@ describe("with no key at all", () => {
 });
 
 describe("the free scorecard", () => {
-  it("is unaffected by any of this and needs no key", async () => {
+  it("is the default for every answer, needs no key, and is unaffected by the flag", async () => {
     const response = await post(
       "/api/score",
       { answers: [{ questionId: BANK_ID, answer: ANSWER, turns: [] }] },
@@ -169,5 +166,19 @@ describe("the free scorecard", () => {
     const body = await response.json();
     expect(body.evaluatedBy.name).toBe("heuristic");
     expect(body.guidance[0].rubric).toHaveLength(dimensions.length);
+  });
+
+  it("scores a question the candidate wrote, with no model anywhere near it", async () => {
+    const response = await post(
+      "/api/score",
+      {
+        answers: [{ questionId: CUSTOM.id, answer: ANSWER, turns: [] }],
+        customQuestions: [CUSTOM],
+      },
+      {},
+    );
+
+    expect(response.status).toBe(200);
+    expect(parse).not.toHaveBeenCalled();
   });
 });
