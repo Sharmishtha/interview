@@ -97,15 +97,23 @@ export async function secondOpinion(
   return (await response.json()) as SecondOpinion;
 }
 
-/** Whether this deployment can offer the second opinion at all. */
-export async function capabilities(): Promise<{ llmEvaluator: boolean }> {
+/**
+ * What this deployment can do. Two flags, not one: `llmScoring` says a model can
+ * score a question you wrote, `secondOpinion` says the paid panel is offered.
+ * Production runs with the first on and the second off.
+ */
+export async function capabilities(): Promise<{ llmScoring: boolean; secondOpinion: boolean }> {
+  const off = { llmScoring: false, secondOpinion: false };
   try {
     const response = await fetch("/api/health");
-    if (!response.ok) return { llmEvaluator: false };
-    const body = (await response.json()) as { llmEvaluator?: boolean };
-    return { llmEvaluator: Boolean(body.llmEvaluator) };
+    if (!response.ok) return off;
+    const body = (await response.json()) as { llmScoring?: boolean; secondOpinion?: boolean };
+    return {
+      llmScoring: Boolean(body.llmScoring),
+      secondOpinion: Boolean(body.secondOpinion),
+    };
   } catch {
     // A button that cannot work is worse than no button.
-    return { llmEvaluator: false };
+    return off;
   }
 }

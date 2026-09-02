@@ -4,7 +4,7 @@ import { HeuristicEvaluator } from "../src/scoring/evaluator.js";
 import { compositeFor } from "../src/scoring/scorer.js";
 import { questionById } from "../src/questions/bank.js";
 import { competencyById } from "../src/rubric/competencies.js";
-import { dimensionById } from "../src/rubric/dimensions.js";
+import { dimensionById, dimensions } from "../src/rubric/dimensions.js";
 
 const evaluator = new HeuristicEvaluator();
 const question = questionById.get("raise-the-bar")!;
@@ -99,5 +99,89 @@ describe("guidanceFor", () => {
   it("raises no blame flag on an answer that owns the outcome", async () => {
     const { guidance: g } = await guidance(STRONG);
     expect(g.flags.join(" ")).not.toMatch(/blame/i);
+  });
+});
+
+describe("the rubric rows", () => {
+  it("covers every dimension, in rubric order, whatever it scored", async () => {
+    const question = [...questionById.values()][0]!;
+    const answer =
+      "At Gracenote in 2021 I owned 40 engineers and moved us from 210 channels to 10,000 in nine months. Priya pushed back and she was right. What I learned was to size the smallest fix first.";
+    const scores = await new HeuristicEvaluator().evaluate(question, answer);
+    const guidance = guidanceFor(
+      { questionId: question.id, dimensionScores: scores, composite: compositeFor(scores) },
+      question,
+      answer,
+    );
+
+    expect(guidance.rubric.map((r) => r.dimension)).toEqual(dimensions.map((d) => d.id));
+  });
+
+  it("gives every row a suggestion and a worked example, not just a gap", async () => {
+    const question = [...questionById.values()][0]!;
+    const answer = "I always believe in empowering the team and we generally did well.";
+    const scores = await new HeuristicEvaluator().evaluate(question, answer);
+    const guidance = guidanceFor(
+      { questionId: question.id, dimensionScores: scores, composite: compositeFor(scores) },
+      question,
+      answer,
+    );
+
+    for (const row of guidance.rubric) {
+      expect(row.suggestion.length).toBeGreaterThan(20);
+      // The example is what turns "quantify the outcome" into something to aim at.
+      expect(row.example.length).toBeGreaterThan(20);
+    }
+  });
+
+  it("prices only the rows below target, and zeroes the rest", async () => {
+    const question = [...questionById.values()][0]!;
+    const answer = "We did some things and it went fine in the end.";
+    const scores = await new HeuristicEvaluator().evaluate(question, answer);
+    const guidance = guidanceFor(
+      { questionId: question.id, dimensionScores: scores, composite: compositeFor(scores) },
+      question,
+      answer,
+    );
+
+    for (const row of guidance.rubric) {
+      if (row.atTarget) expect(row.compositeGain).toBe(0);
+      else expect(row.compositeGain).toBeGreaterThan(0);
+    }
+  });
+
+  it("marks the rows the evaluator estimated rather than measured", async () => {
+    const question = [...questionById.values()][0]!;
+    const answer = "At Gracenote we cut latency by 40% in two quarters.";
+    const evaluator = new HeuristicEvaluator();
+    const scores = await evaluator.evaluate(question, answer);
+    const guidance = guidanceFor(
+      { questionId: question.id, dimensionScores: scores, composite: compositeFor(scores) },
+      question,
+      answer,
+      8,
+      evaluator.approximates,
+    );
+
+    const estimated = guidance.rubric.filter((r) => r.estimated).map((r) => r.dimension);
+    expect([...estimated].sort()).toEqual([...evaluator.approximates].sort());
+  });
+
+  it("keeps the top lifts as a subset of the rubric, so the two cannot disagree", async () => {
+    const question = [...questionById.values()][0]!;
+    const answer = "I always believe in empowering the team.";
+    const scores = await new HeuristicEvaluator().evaluate(question, answer);
+    const guidance = guidanceFor(
+      { questionId: question.id, dimensionScores: scores, composite: compositeFor(scores) },
+      question,
+      answer,
+    );
+
+    for (const lift of guidance.lifts) {
+      const row = guidance.rubric.find((r) => r.dimension === lift.dimension)!;
+      expect(row).toBeDefined();
+      expect(row.compositeGain).toBe(lift.compositeGain);
+      expect(row.suggestion).toBe(lift.suggestion);
+    }
   });
 });

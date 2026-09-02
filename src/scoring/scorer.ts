@@ -9,7 +9,7 @@ import type {
   InterviewSession,
   Scorecard,
 } from "../types.js";
-import { guidanceFor } from "./coach.js";
+import { guidanceFor, TARGET_SCORE } from "./coach.js";
 import { narrativeFor } from "./narrative.js";
 import type { Evaluator } from "./evaluator.js";
 
@@ -121,7 +121,16 @@ export function buildScorecard(
   const guidance = answerScores.flatMap((answerScore) => {
     const question = questionById.get(answerScore.questionId);
     if (!question) return [];
-    return [guidanceFor(answerScore, question, answerById.get(answerScore.questionId) ?? "")];
+    return [
+      guidanceFor(
+        answerScore,
+        question,
+        answerById.get(answerScore.questionId) ?? "",
+        TARGET_SCORE,
+        // So each rubric row can say whether its score was measured or estimated.
+        evaluator?.approximates ?? [],
+      ),
+    ];
   });
 
   return {

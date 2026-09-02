@@ -79,12 +79,24 @@ export interface Lift {
   suggestion: string;
 }
 
+export interface RubricRow {
+  dimension: string;
+  value: number;
+  rationale: string;
+  suggestion: string;
+  example: string;
+  compositeGain: number;
+  atTarget: boolean;
+  estimated: boolean;
+}
+
 export interface AnswerGuidance {
   questionId: string;
   composite: number;
   target: number;
   reachable: number;
   lifts: Lift[];
+  rubric: RubricRow[];
   probes: { question: string; likelyUncovered: boolean }[];
   listeningFor: string[];
   flags: string[];

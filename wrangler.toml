@@ -34,6 +34,11 @@ run_worker_first = true
 [env.staging]
 name = "interview-staging"
 
+# The paid second opinion is offered on staging and nowhere else. Anything but
+# the exact string "on" leaves it off, so a typo fails closed.
+[env.staging.vars]
+SECOND_OPINION = "on"
+
 [env.staging.assets]
 directory = "./web/dist"
 binding = "ASSETS"
@@ -46,6 +51,12 @@ custom_domain = true
 
 [env.production]
 name = "interview-production"
+
+# Deliberately off. Setting ANTHROPIC_API_KEY on production still lets the model
+# score questions a candidate wrote for themselves; it does not put the paid
+# panel in front of anyone. Flip to "on" and redeploy when you want to sell it.
+[env.production.vars]
+SECOND_OPINION = "off"
 
 [env.production.assets]
 directory = "./web/dist"

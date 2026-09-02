@@ -1,4 +1,4 @@
-import type { Question, Scorecard } from "./types";
+import type { AnswerRecord, Question, Scorecard } from "./types";
 
 /**
  * Practice history, kept in this browser and nowhere else.
@@ -16,8 +16,13 @@ import type { Question, Scorecard } from "./types";
 
 const KEY = "interview.history.v1";
 
-/** Keeps a long history from growing without bound in a 5MB store. */
-const MAX_ENTRIES = 50;
+/**
+ * Keeps a long history inside a ~5MB store. Full scorecards are kept so an old
+ * attempt can be reopened and read, which costs perhaps 20KB each; twenty-five
+ * is a comfortable margin, and a write that still does not fit drops the oldest
+ * until it does rather than failing.
+ */
+const MAX_ENTRIES = 25;
 
 export interface StoredAttempt {
   id: string;
@@ -35,6 +40,13 @@ export interface StoredAttempt {
   headline: string;
   /** Present when the second opinion was run on this attempt. */
   llmOverall?: number;
+  /**
+   * The whole scorecard, so an attempt can be reopened and re-read rather than
+   * only remembered as a number. Absent on entries written before this existed.
+   */
+  scorecard?: Scorecard;
+  /** What was actually said, so you can reread your own words while preparing. */
+  answers?: AnswerRecord[];
 }
 
 function read(): StoredAttempt[] {
@@ -51,10 +63,16 @@ function read(): StoredAttempt[] {
 }
 
 function write(entries: StoredAttempt[]): void {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
-  } catch {
-    // Quota exceeded or storage denied. Nothing to do and nothing worth saying.
+  // Drop the oldest until it fits. A full store must cost you your oldest
+  // rehearsal, never the one you just finished.
+  for (let keep = Math.min(entries.length, MAX_ENTRIES); keep > 0; keep--) {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(entries.slice(0, keep)));
+      return;
+    } catch {
+      // Quota exceeded, or storage denied outright. Try again with less; if even
+      // one entry will not fit, the loop ends and history simply does not persist.
+    }
   }
 }
 
@@ -67,6 +85,7 @@ export function saveAttempt(
   scorecard: Scorecard,
   questions: Question[],
   kind: "guide" | "custom",
+  answers: AnswerRecord[] = [],
 ): StoredAttempt {
   // Averaged across answers, because a trend line per dimension is the whole
   // point of keeping these: "your Learning score moved 2.5 to 6.1 over four runs".
@@ -96,6 +115,8 @@ export function saveAttempt(
       value: c.value,
     })),
     headline: scorecard.narrative.headline,
+    scorecard,
+    answers,
   };
 
   // Replacing by id keeps a re-score of the same session from stacking up.
@@ -127,4 +148,9 @@ export function trendFor(dimension: string, entries = read()): number[] | null {
     .filter((value): value is number => value !== undefined);
 
   return points.length >= 2 ? points : null;
+}
+
+/** One stored attempt by id, or null if it has been trimmed away or cleared. */
+export function attempt(id: string): StoredAttempt | null {
+  return read().find((entry) => entry.id === id) ?? null;
 }

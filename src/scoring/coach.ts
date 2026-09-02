@@ -1,12 +1,14 @@
 import { competencyById } from "../rubric/competencies.js";
-import { dimensionById } from "../rubric/dimensions.js";
+import { dimensionById, dimensions } from "../rubric/dimensions.js";
 import { deflectionSpans, starElements, STAR_ELEMENTS } from "./evaluator.js";
 import type {
   AnswerGuidance,
   AnswerScore,
+  DimensionId,
   DimensionScore,
   InterviewQuestion,
   Lift,
+  RubricRow,
 } from "../types.js";
 
 /** The score a candidate is coached towards. */
@@ -27,11 +29,46 @@ const STAR_LABELS: Record<(typeof STAR_ELEMENTS)[number], string> = {
   learning: "the Learning (what it taught you)",
 };
 
-function suggestionFor(score: DimensionScore, answer: string): string {
+/**
+ * What to change, and what it sounds like when it is right.
+ *
+ * A rationale tells you the gap; on its own it leaves you to invent the fix.
+ * Every dimension therefore carries both a suggestion and a worked example,
+ * because "quantify the outcome" and "from 210 channels to 10,000 in nine
+ * months" are not the same instruction.
+ */
+export interface Coaching {
+  /** The change to make, in the second person. */
+  suggestion: string;
+  /** A phrase in the shape of the fix. Not a script - a target to aim at. */
+  example: string;
+}
+
+/** What good sounds like on each dimension. Deliberately concrete and unglamorous. */
+const EXAMPLES: Record<DimensionId, string> = {
+  specificity:
+    "\u201cWhen I joined Gracenote in 2021, the ingest pipeline was three days behind and Priya was running it alone.\u201d",
+  "scope-scale":
+    "\u201cI owned 40 engineers across three sites and a $12m budget, against a P&L of about $90m.\u201d",
+  ownership:
+    "\u201cI decided to stop the rewrite. The team had argued for it and they were right about the risk - so the call, and the fallout, were mine.\u201d",
+  "quantified-outcomes":
+    "\u201cChurn went from 9% to 3.5% over two quarters, and we held it there for a year.\u201d",
+  learning:
+    "\u201cWhat it taught me was that I had let it run six months past the point I already knew. Now I put a date on the decision before I start.\u201d",
+  "star-structure":
+    "\u201cWe were three days behind (situation). I had to get it under an hour (task). I rebuilt only the ingest path (action). We hit 40 minutes (result). And I learned to size the smallest fix first (learning).\u201d",
+  "story-shape":
+    "\u201cTwo weeks in, the numbers stopped making sense. I pulled the raw logs myself on a Sunday, and that is when I found we had been double-counting since March.\u201d",
+  memorability:
+    "\u201cPriya said, in front of everyone, \u2018you are asking us to rebuild the plane mid-flight.\u2019 She was right, and it changed what I did next.\u201d",
+};
+
+function suggestionTextFor(score: DimensionScore, answer: string): string {
   switch (score.dimension) {
     case "specificity":
       return score.rationale.includes("general-philosophy")
-        ? "Cut the philosophy and open with one named situation instead: the business, the year, and who was involved. 'When I joined X in 2021' beats 'I always believe'."
+        ? "Cut the philosophy and open with one named situation instead: the business, the year, and who was involved."
         : "Anchor the story. Name the company or division, when it happened, and at least one other person by name.";
 
     case "scope-scale":
@@ -47,7 +84,7 @@ function suggestionFor(score: DimensionScore, answer: string): string {
       return "Make the line between your decisions and your team's execution explicit.";
 
     case "quantified-outcomes":
-      return "State the Result as a number with a before and an after - 'from X to Y in Z months'. The guide's assessors listen for outcomes, and an unquantified result reads as activity.";
+      return "State the Result as a number with a before and an after. The guide's assessors listen for outcomes, and an unquantified result reads as activity.";
 
     case "learning":
       return "Close with the Learning. What did this teach you, and what would you do differently? Several principles list this explicitly as a positive signal, and leaving it out reads as an inability to grow from the experience.";
@@ -60,7 +97,7 @@ function suggestionFor(score: DimensionScore, answer: string): string {
           : "Sharpen the turn: name the point where it stopped going to plan.";
 
     case "memorability":
-      return "Add one detail nobody else could have supplied - the name of the person who pushed back, a line someone actually said, an odd specific like 'a 2-second granularity across millions of devices'. The interviewer will forget your competencies by Friday; they will still be able to retell the detail, and that is what they argue from in the debrief.";
+      return "Add one detail nobody else could have supplied - the name of the person who pushed back, a line someone actually said, an odd specific. The interviewer will forget your competencies by Friday; they will still be able to retell the detail, and that is what they argue from in the debrief.";
 
     case "star-structure": {
       const found = starElements(answer);
@@ -73,6 +110,32 @@ function suggestionFor(score: DimensionScore, answer: string): string {
     default:
       return "Add more evidence here.";
   }
+}
+
+/**
+ * Coaching for one dimension, whatever it scored.
+ *
+ * A dimension already at target gets a note on what is holding it up rather
+ * than a fix it does not need - the point is that the whole rubric is
+ * answerable, not that everything is a problem.
+ */
+export function coachingFor(
+  score: DimensionScore,
+  answer: string,
+  target = TARGET_SCORE,
+): Coaching {
+  if (score.value >= target) {
+    return {
+      suggestion:
+        "Already carrying this one. Keep it when you retell the story - it is doing work.",
+      example: EXAMPLES[score.dimension],
+    };
+  }
+  return { suggestion: suggestionTextFor(score, answer), example: EXAMPLES[score.dimension] };
+}
+
+function suggestionFor(score: DimensionScore, answer: string): string {
+  return suggestionTextFor(score, answer);
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +249,9 @@ function isProbeLikelyUncovered(probeQuestion: string, answer: string): boolean 
     .filter((word) => word.length > 3 && !STOPWORDS.has(word));
 
   if (keywords.length === 0) return false;
-  const covered = keywords.filter((word) => haystack.includes(word.slice(0, Math.max(4, word.length - 2))));
+  const covered = keywords.filter((word) =>
+    haystack.includes(word.slice(0, Math.max(4, word.length - 2))),
+  );
   return covered.length / keywords.length < 0.34;
 }
 
@@ -204,7 +269,32 @@ export function guidanceFor(
   question: InterviewQuestion,
   answer: string,
   target = TARGET_SCORE,
+  estimated: readonly DimensionId[] = [],
 ): AnswerGuidance {
+  const wasEstimated = new Set(estimated);
+
+  // Every dimension, in rubric order rather than sorted by score: the table is
+  // the same shape on every answer, which is what makes it readable across
+  // three of them.
+  const rubric: RubricRow[] = dimensions.map((dimension) => {
+    const score = answerScore.dimensionScores.find((s) => s.dimension === dimension.id);
+    const value = score?.value ?? 0;
+    const coaching = score
+      ? coachingFor(score, answer, target)
+      : { suggestion: "Not scored.", example: "" };
+
+    return {
+      dimension: dimension.id,
+      value,
+      rationale: score?.rationale ?? "",
+      suggestion: coaching.suggestion,
+      example: coaching.example,
+      compositeGain: value >= target ? 0 : round((target - value) * dimension.weight),
+      atTarget: value >= target,
+      estimated: wasEstimated.has(dimension.id),
+    };
+  });
+
   const lifts: Lift[] = answerScore.dimensionScores
     .filter((score) => score.value < target)
     .map((score) => {
@@ -230,6 +320,7 @@ export function guidanceFor(
     target,
     reachable: Math.min(reachable, 10),
     lifts,
+    rubric,
     probes: question.probes.map((probe) => ({
       question: probe.question,
       likelyUncovered: isProbeLikelyUncovered(probe.question, answer),

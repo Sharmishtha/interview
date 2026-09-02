@@ -66,6 +66,18 @@ and hostnames. A bare `wrangler deploy` publishes the top-level config, which is
 is why the `deploy` script was removed in favour of `deploy:staging` and `deploy:prod`. Do not
 add one back.
 
+**The paid panel is gated on the server, not in the UI.** `SECOND_OPINION` is a var in
+`wrangler.toml` — `"on"` for staging, `"off"` for production — and anything but the exact string
+`"on"` fails closed. With it off, `/api/score/llm` returns 403 for anything that is not a question
+the candidate wrote, because hiding a button stops nobody from posting to a route. Keep the two
+levers separate: the key controls whether any model call happens; the flag controls whether the
+panel is offered.
+
+**The rubric table is the coaching surface.** `AnswerGuidance.rubric` carries every dimension with
+a rationale, a suggestion and a worked example. The rationale alone names the gap and leaves
+someone to invent the fix, which is the hard part — "quantify the outcome" and "churn went from 9%
+to 3.5% over two quarters" are not the same instruction. Never ship a row without both.
+
 **Substance and story are weighted deliberately: 0.75 / 0.25.** `GROUP_WEIGHTS` in
 `src/rubric/dimensions.ts` states the intended split and `tests/rubric.test.ts` asserts it, so
 changing one dimension's weight cannot quietly move the balance of the whole rubric. Story gets
@@ -126,7 +138,7 @@ Each of these cost real debugging time. They are not theoretical.
 
 ```bash
 npm run dev      # API :3001 + UI :5173
-npm test         # 137 tests
+npm test         # 151 tests
 npm run eval     # scorer against the labelled corpus
 npm run lint
 npm run build

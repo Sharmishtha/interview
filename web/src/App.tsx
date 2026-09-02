@@ -7,11 +7,12 @@ import type {
   Interview,
   Panelist,
   Question,
+  RubricRow,
   Scorecard,
   SecondOpinion,
 } from "./types";
 
-type Screen = "setup" | "compose" | "interview" | "complete" | "scoring" | "report";
+type Screen = "setup" | "compose" | "interview" | "complete" | "scoring" | "report" | "past";
 type Stage = "asking" | "answering" | "transcribing" | "review" | "probing";
 type Kind = "guide" | "custom";
 
@@ -25,6 +26,8 @@ export default function App() {
   /** Which evaluator produced the score on screen. Never left implicit. */
   const [scoredBy, setScoredBy] = useState<"heuristic" | "llm">("heuristic");
   const [error, setError] = useState<string | null>(null);
+  /** The stored attempt being re-read, if any. */
+  const [pastId, setPastId] = useState<string | null>(null);
 
   /**
    * A question the candidate wrote travels with every scoring request, because
@@ -78,7 +81,7 @@ export default function App() {
       // falls back to the free evaluator where it is not.
       let card: Scorecard | null = null;
 
-      if (kind === "custom" && (await api.capabilities()).llmEvaluator) {
+      if (kind === "custom" && (await api.capabilities()).llmScoring) {
         try {
           card = await api.secondOpinion(candidateName, answers, customQuestions);
         } catch {
@@ -91,13 +94,17 @@ export default function App() {
       const scored = card ?? (await api.score(candidateName, answers, customQuestions));
       setScorecard(scored);
       setScoredBy(card ? "llm" : "heuristic");
-      storage.saveAttempt(scored, interview?.questions ?? [], kind);
+      storage.saveAttempt(scored, interview?.questions ?? [], kind, answers);
       setScreen("report");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Scoring failed.");
       setScreen("complete");
     }
   }, [answers, candidateName, customQuestions, interview, kind]);
+
+  if (screen === "past" && pastId) {
+    return <PastAttempt id={pastId} onBack={() => setScreen("setup")} />;
+  }
 
   if (screen === "compose") {
     return (
@@ -116,6 +123,10 @@ export default function App() {
         onCompose={(name) => {
           setCandidateName(name);
           setScreen("compose");
+        }}
+        onOpenPast={(id) => {
+          setPastId(id);
+          setScreen("past");
         }}
         error={error}
       />
@@ -159,10 +170,12 @@ export default function App() {
 function Setup({
   onStart,
   onCompose,
+  onOpenPast,
   error,
 }: {
   onStart: (name: string) => void;
   onCompose: (name: string) => void;
+  onOpenPast: (id: string) => void;
   error: string | null;
 }) {
   const [name, setName] = useState("");
@@ -244,6 +257,7 @@ function Setup({
         {past.length > 0 && (
           <History
             entries={past}
+            onOpen={onOpenPast}
             onClear={() => {
               storage.clearHistory();
               setPast([]);
@@ -264,7 +278,15 @@ function Setup({
  * on the way out: the point of keeping them is to see whether you are getting
  * better, and that question is worth asking before you start, not after.
  */
-function History({ entries, onClear }: { entries: storage.StoredAttempt[]; onClear: () => void }) {
+function History({
+  entries,
+  onOpen,
+  onClear,
+}: {
+  entries: storage.StoredAttempt[];
+  onOpen: (id: string) => void;
+  onClear: () => void;
+}) {
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -297,15 +319,22 @@ function History({ entries, onClear }: { entries: storage.StoredAttempt[]; onCle
       </div>
 
       <ul className="history__list">
-        {entries.slice(0, 5).map((entry) => (
-          <li className="history__row" key={entry.id}>
-            <span className={`score score--${tier(entry.overall)}`}>
-              {entry.overall.toFixed(1)}
-            </span>
-            <span className="history__what">
-              {entry.kind === "custom" ? entry.questions[0]?.text : entry.headline}
-            </span>
-            <span className="history__when">{shortDate(entry.at)}</span>
+        {entries.slice(0, 8).map((entry) => (
+          <li key={entry.id}>
+            {/* Entries written before full scorecards were stored have nothing
+                to open, so they stay readable but inert rather than dead links. */}
+            {entry.scorecard ? (
+              <button className="history__row history__row--open" onClick={() => onOpen(entry.id)}>
+                <HistoryRow entry={entry} />
+                <span className="history__go" aria-hidden="true">
+                  →
+                </span>
+              </button>
+            ) : (
+              <span className="history__row">
+                <HistoryRow entry={entry} />
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -314,6 +343,96 @@ function History({ entries, onClear }: { entries: storage.StoredAttempt[]; onCle
         Kept in this browser only — never sent anywhere, and gone when you clear site data.
       </p>
     </section>
+  );
+}
+
+function HistoryRow({ entry }: { entry: storage.StoredAttempt }) {
+  return (
+    <>
+      <span className={`score score--${tier(entry.overall)}`}>{entry.overall.toFixed(1)}</span>
+      <span className="history__what">
+        {entry.kind === "custom" ? entry.questions[0]?.text : entry.headline}
+      </span>
+      <span className="history__when">{shortDate(entry.at)}</span>
+    </>
+  );
+}
+
+/**
+ * A stored attempt, reopened.
+ *
+ * Renders the same report the candidate saw on the day, from the scorecard kept
+ * in this browser. The rubric wording is fetched rather than stored, so an old
+ * attempt reads against the rubric as it stands now - which is the version they
+ * are about to be interviewed against.
+ */
+function PastAttempt({ id, onBack }: { id: string; onBack: () => void }) {
+  const entry = useMemo(() => storage.attempt(id), [id]);
+  const [rubric, setRubric] = useState<Interview["rubric"] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void api
+      .fetchInterview()
+      .then((interview) => live && setRubric(interview.rubric))
+      .catch(() => live && setFailed(true));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (!entry?.scorecard) {
+    return (
+      <Dead
+        title="That attempt is no longer stored"
+        detail="History is kept in this browser, and this one has been cleared or aged out."
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (failed) {
+    return (
+      <Dead
+        title="Could not load the rubric"
+        detail="Your attempt is safe — the page needs the server to label it. Try again in a moment."
+        onBack={onBack}
+      />
+    );
+  }
+
+  if (!rubric) {
+    return <Centered title="Opening your attempt" subtitle="Reading it back from this browser." />;
+  }
+
+  return (
+    <Report
+      scorecard={entry.scorecard}
+      interview={{ panelists: [], questions: entry.questions as Question[], rubric }}
+      candidateName={entry.candidateName}
+      answers={entry.answers ?? []}
+      customQuestions={[]}
+      scoredBy="heuristic"
+      readOnly={{ at: entry.at, onBack }}
+      onRestart={onBack}
+    />
+  );
+}
+
+function Dead({ title, detail, onBack }: { title: string; detail: string; onBack: () => void }) {
+  return (
+    <main className="shell shell--center">
+      <div className="centered">
+        <h2>{title}</h2>
+        <p>{detail}</p>
+        <div className="controls__row" style={{ justifyContent: "center", marginTop: 20 }}>
+          <button className="button" onClick={onBack}>
+            Back
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
 
@@ -867,6 +986,7 @@ function Report({
   answers,
   customQuestions,
   scoredBy,
+  readOnly,
   onRestart,
 }: {
   scorecard: Scorecard;
@@ -875,6 +995,8 @@ function Report({
   answers: AnswerRecord[];
   customQuestions: Question[];
   scoredBy: "heuristic" | "llm";
+  /** Set when re-reading a stored attempt: no re-scoring, no spending. */
+  readOnly?: { at: string; onBack: () => void };
   onRestart: () => void;
 }) {
   const competency = useMemo(
@@ -898,6 +1020,10 @@ function Report({
    * than hidden: a score someone is being coached against should say how
    * confident it is entitled to be.
    */
+  const answerText = useMemo(
+    () => new Map(answers.map((a) => [a.questionId, a.answer])),
+    [answers],
+  );
   const approximated = useMemo(
     () => new Set(scorecard.evaluatedBy?.approximates ?? []),
     [scorecard],
@@ -952,7 +1078,12 @@ function Report({
           </div>
         )}
 
-        {scoredBy === "llm" ? (
+        {readOnly ? (
+          <p className="provenance">
+            Re-reading your attempt from {shortDate(readOnly.at)}. Nothing here is re-scored, so the
+            numbers are exactly what you saw on the day.
+          </p>
+        ) : scoredBy === "llm" ? (
           <p className="provenance">
             This one was read by the model rather than pattern-matched, because you wrote the
             question yourself.
@@ -1079,7 +1210,7 @@ function Report({
           ))}
         </div>
 
-        <h2 className="section">Answer detail</h2>
+        <h2 className="section">Your rubric, question by question</h2>
         {approximated.size > 0 && (
           <p className="estimate-note">
             {estimatedNames} {approximated.size === 1 ? "is" : "are"} estimated here. They are
@@ -1089,44 +1220,93 @@ function Report({
           </p>
         )}
         <div className="answers">
-          {scorecard.answerScores.map((answer) => (
-            <article className="answer" key={answer.questionId}>
+          {scorecard.guidance.map((guidance) => (
+            <article className="answer" key={guidance.questionId}>
               <div className="answer__head">
-                <span className={`score score--${tier(answer.composite)}`}>
-                  {answer.composite.toFixed(1)}
+                <span className={`score score--${tier(guidance.composite)}`}>
+                  {guidance.composite.toFixed(1)}
                 </span>
-                <p>{questionText.get(answer.questionId) ?? answer.questionId}</p>
+                <p>{questionText.get(guidance.questionId) ?? guidance.questionId}</p>
               </div>
-              <ul className="notes">
-                {[...answer.dimensionScores]
-                  .sort((a, b) => a.value - b.value)
-                  .map((dimension) => (
-                    <li key={dimension.dimension}>
-                      <span className={`chip chip--${tier(dimension.value)}`}>
-                        {dimensionName.get(dimension.dimension) ?? dimension.dimension}{" "}
-                        {dimension.value.toFixed(1)}
-                      </span>
-                      <span className="notes__text">
-                        {dimension.rationale}
-                        {approximated.has(dimension.dimension) && (
-                          <em className="estimate" title="Matched on surface features, not read">
-                            {" "}
-                            estimated
-                          </em>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-              </ul>
+
+              <div className="rubric">
+                {guidance.rubric.map((row) => (
+                  <RubricRowView
+                    key={row.dimension}
+                    row={row}
+                    name={dimensionName.get(row.dimension) ?? row.dimension}
+                  />
+                ))}
+              </div>
+
+              {answerText.get(guidance.questionId) && (
+                <details className="drawer">
+                  <summary>What you said</summary>
+                  <p className="said">{answerText.get(guidance.questionId)}</p>
+                </details>
+              )}
             </article>
           ))}
         </div>
 
-        <button className="button button--primary" onClick={onRestart}>
-          Run another interview
-        </button>
+        <div className="controls__row">
+          <button className="button button--primary" onClick={onRestart}>
+            {readOnly ? "Back to practice" : "Run another interview"}
+          </button>
+        </div>
       </section>
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// One line of the rubric
+// ---------------------------------------------------------------------------
+
+/**
+ * A dimension, its score, and what to do about it.
+ *
+ * The rationale says what is missing; on its own that leaves someone to invent
+ * the fix, which is the hard part. So every row carries a suggestion and a
+ * worked example - "quantify the outcome" and "churn went from 9% to 3.5% over
+ * two quarters" are not the same instruction.
+ */
+function RubricRowView({ row, name }: { row: RubricRow; name: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={`rrow rrow--${tier(row.value)} ${row.atTarget ? "rrow--met" : ""}`}>
+      <button className="rrow__head" onClick={() => setOpen((was) => !was)} aria-expanded={open}>
+        <span className="rrow__bar" style={{ width: `${row.value * 10}%` }} />
+        <span className="rrow__name">
+          {name}
+          {row.estimated && (
+            <em className="estimate" title="Matched on surface features, not read">
+              estimated
+            </em>
+          )}
+        </span>
+        <span className={`rrow__score score--${tier(row.value)}`}>{row.value.toFixed(1)}</span>
+        {row.compositeGain > 0 && (
+          <span className="rrow__gain">+{row.compositeGain.toFixed(2)}</span>
+        )}
+        <span className="rrow__toggle">{open ? "−" : "+"}</span>
+      </button>
+
+      {open && (
+        <div className="rrow__body">
+          <p className="rrow__why">{row.rationale}</p>
+          <p className="rrow__label">Suggestion</p>
+          <p className="rrow__suggestion">{row.suggestion}</p>
+          {row.example && (
+            <>
+              <p className="rrow__label">What that sounds like</p>
+              <p className="rrow__example">{row.example}</p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1168,7 +1348,7 @@ function SecondOpinionPanel({
   useEffect(() => {
     let live = true;
     void api.capabilities().then((caps) => {
-      if (live) setAvailable(caps.llmEvaluator);
+      if (live) setAvailable(caps.secondOpinion);
     });
     return () => {
       live = false;

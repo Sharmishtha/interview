@@ -1356,3 +1356,174 @@ body {
   border-radius: var(--card);
   padding: 14px 18px;
 }
+
+/* --- the rubric, one row per dimension ----------------------------------- */
+
+.rubric {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--surface-2);
+}
+
+.rrow {
+  border-bottom: 1px solid var(--surface-2);
+}
+
+.rrow__head {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.rrow__head:hover {
+  background: var(--surface);
+}
+
+.rrow__head:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: -2px;
+}
+
+/* The score as a bar behind the row, so the shape of a whole answer is legible
+   at a glance without a separate chart. */
+.rrow__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px;
+  opacity: 0.9;
+}
+
+.rrow--high .rrow__bar {
+  background: var(--high);
+}
+
+.rrow--mid .rrow__bar {
+  background: var(--mid);
+}
+
+.rrow--low .rrow__bar {
+  background: var(--low);
+}
+
+.rrow__name {
+  flex: 1 1 auto;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rrow__score {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
+.rrow__gain {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--high);
+  background: var(--high-soft);
+  padding: 3px 8px;
+  border-radius: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rrow__toggle {
+  width: 18px;
+  text-align: center;
+  color: var(--faint);
+  font-size: 17px;
+}
+
+.rrow__body {
+  padding: 4px 4px 20px 4px;
+}
+
+.rrow__why {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.rrow__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.rrow__suggestion {
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.rrow__example {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--muted);
+  background: var(--surface);
+  border-left: 3px solid var(--accent-soft);
+  border-radius: 0 var(--card) var(--card) 0;
+  padding: 14px 18px;
+}
+
+.rrow--met .rrow__label {
+  color: var(--high);
+}
+
+/* A history row you can open. Styled as a row, not a button. */
+.history__row--open {
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+.history__row--open:hover {
+  background: var(--surface);
+}
+
+.history__row--open:focus-visible {
+  outline: 3px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+
+.history__go {
+  color: var(--faint);
+  font-size: 16px;
+}
+
+/* Your own words, read back. */
+.said {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--muted);
+  white-space: pre-wrap;
+  background: var(--surface);
+  border-radius: var(--card);
+  padding: 16px 18px;
+}

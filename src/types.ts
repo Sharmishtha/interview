@@ -192,14 +192,38 @@ export interface Lift {
   suggestion: string;
 }
 
+/**
+ * One line of the rubric for one answer: what it scored, why, and what to do
+ * about it. Every dimension gets a row, including the ones already strong - the
+ * table is how someone reads their own answer back, so a blank row is a dead end.
+ */
+export interface RubricRow {
+  dimension: DimensionId;
+  /** 0-10, as scored. */
+  value: number;
+  /** Why this score - the gap, stated plainly. */
+  rationale: string;
+  /** What to change. */
+  suggestion: string;
+  /** A phrase in the shape of the fix, so "quantify it" has something to aim at. */
+  example: string;
+  /** What taking this dimension to target adds to the composite. 0 when at target. */
+  compositeGain: number;
+  atTarget: boolean;
+  /** True when the evaluator estimated this rather than measuring it. */
+  estimated: boolean;
+}
+
 export interface AnswerGuidance {
   questionId: InterviewQuestion["id"];
   composite: number;
   target: number;
   /** Where the composite lands if the listed lifts are applied. */
   reachable: number;
-  /** Highest-leverage changes first. */
+  /** Highest-leverage changes first. A subset of `rubric`, kept for the summary. */
   lifts: Lift[];
+  /** Every dimension, in rubric order. The scorecard people actually read. */
+  rubric: RubricRow[];
   /**
    * The guide's optional probes for this question, so the candidate can rehearse
    * them. `likelyUncovered` is a keyword-overlap hint, not a claim of fact.

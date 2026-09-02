@@ -337,7 +337,7 @@ nothing and means a leak from one does not require rotating the other. The same 
 ElevenLabs.
 
 Check it took: `curl https://staging.getoutloud.ai/api/health` should return
-`"llmEvaluator": true`.
+`"llmScoring": true`.
 
 ## Deploying to Cloudflare
 
@@ -386,6 +386,25 @@ The first deploy of each environment creates its custom domain and issues the ce
 takes a minute or two, and until it finishes the hostname may return a 5xx or a certificate
 warning — wait it out rather than redeploying.
 
+### Turning the paid second opinion on and off
+
+Two independent levers, because they answer different questions:
+
+| Lever                             | Effect                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` unset         | No model call happens on that deployment, at all.                                                 |
+| Key set, `SECOND_OPINION = "off"` | The model still scores questions a candidate wrote for themselves; the paid panel is not offered. |
+| Key set, `SECOND_OPINION = "on"`  | The panel appears on the scorecard.                                                               |
+
+`SECOND_OPINION` lives in `[env.*.vars]` in `wrangler.toml` — **`"on"` for staging, `"off"` for
+production**, which is where it stays until you want to sell it. Anything other than the exact
+string `"on"` leaves it off, so a typo fails closed.
+
+This is enforced on the server, not by hiding a button: with the panel off, `/api/score/llm`
+returns 403 for anything that is not a question the candidate wrote, so posting to the route
+directly buys nothing. Change it by editing `wrangler.toml` and redeploying — it is a var, not a
+secret, so it is reviewable in the diff.
+
 ### Every time after that
 
 ```bash
@@ -397,7 +416,8 @@ Check what a deployment can do before trusting it:
 
 ```bash
 curl https://staging.getoutloud.ai/api/health
-# {"ok":true,"elevenlabs":true,"llmEvaluator":true}
+# {"ok":true,"elevenlabs":true,"llmScoring":true,"secondOpinion":true}
+# production should show "secondOpinion":false
 ```
 
 `npm run cf:dev` runs the Worker locally under workerd first if you want to check before shipping,

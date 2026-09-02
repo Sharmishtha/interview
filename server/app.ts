@@ -19,8 +19,14 @@ import type {
 
 export interface Env {
   ELEVENLABS_API_KEY?: string;
-  /** Enables the second-opinion evaluator. Absent means the feature is simply off. */
+  /** Enables LLM scoring at all. Absent means no request ever leaves for a model. */
   ANTHROPIC_API_KEY?: string;
+  /**
+   * Whether the paid "second opinion" is offered on this deployment. "off"
+   * anywhere but the exact string "on" - so a missing or misspelt value fails
+   * closed rather than quietly enabling a thing that costs money.
+   */
+  SECOND_OPINION?: string;
   /** When set, the whole app sits behind a password. See server/gate.ts. */
   APP_PASSWORD?: string;
   /** Cloudflare static assets binding. Absent under Node. */
@@ -33,7 +39,9 @@ type Ctx = Context<{ Bindings: Env }>;
  * Secrets arrive differently on each platform: bound to the request context on
  * Cloudflare Workers, and through the environment on Node.
  */
-function secret(c: Ctx, name: "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY"): string {
+type EnvName = "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY" | "SECOND_OPINION";
+
+function secret(c: Ctx, name: EnvName): string {
   const bound = c.env?.[name];
   if (bound) return bound;
   return typeof process !== "undefined" ? (process.env[name] ?? "") : "";
@@ -41,6 +49,24 @@ function secret(c: Ctx, name: "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY"): strin
 
 function apiKey(c: Ctx): string {
   return secret(c, "ELEVENLABS_API_KEY");
+}
+
+/**
+ * Whether this deployment offers the paid second opinion.
+ *
+ * Two independent levers, because they answer different questions. No
+ * ANTHROPIC_API_KEY means no model call happens at all, anywhere. A key with
+ * SECOND_OPINION unset means the model still scores questions a candidate wrote
+ * for themselves - which is the case pattern matching handles worst - but the
+ * paid panel is not offered. Production ships with the panel off.
+ */
+function secondOpinionOffered(c: Ctx): boolean {
+  return Boolean(secret(c, "ANTHROPIC_API_KEY")) && secret(c, "SECOND_OPINION") === "on";
+}
+
+/** A question the bank has never heard of is one the candidate wrote. */
+function isCustomOnly(session: InterviewSession): boolean {
+  return session.questions.length > 0 && session.questions.every((q) => !questionById.has(q.id));
 }
 
 function message(error: unknown): string {
@@ -202,15 +228,19 @@ app.post("/api/score", async (c) => {
 app.post("/api/score/llm", async (c) => {
   const evaluator = llmEvaluatorFor(secret(c, "ANTHROPIC_API_KEY"));
   if (!evaluator) {
-    return c.json(
-      { error: "The second-opinion evaluator is not configured on this deployment." },
-      503,
-    );
+    return c.json({ error: "Model scoring is not configured on this deployment." }, 503);
   }
 
   try {
     const session = sessionFrom(await c.req.json<ScoreRequest>());
     if (isRefusal(session)) return c.json({ error: session.error }, session.status);
+
+    // Where the paid panel is off, this route still scores questions the
+    // candidate wrote and nothing else. Enforced here rather than by hiding a
+    // button: the button is client-side, and anyone can post to a route.
+    if (!secondOpinionOffered(c) && !isCustomOnly(session)) {
+      return c.json({ error: "The second opinion is not available on this deployment." }, 403);
+    }
 
     const byId = new Map(session.questions.map((q) => [q.id, q]));
     const reviews = await Promise.all(
@@ -300,7 +330,9 @@ app.get("/api/health", (c) =>
   c.json({
     ok: true,
     elevenlabs: Boolean(apiKey(c)),
-    // The UI hides the second-opinion button when this is false.
-    llmEvaluator: Boolean(secret(c, "ANTHROPIC_API_KEY")),
+    /** Whether a custom question can be scored by the model. */
+    llmScoring: Boolean(secret(c, "ANTHROPIC_API_KEY")),
+    /** Whether the paid second-opinion panel is offered. The UI hides it otherwise. */
+    secondOpinion: secondOpinionOffered(c),
   }),
 );
