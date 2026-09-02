@@ -3,13 +3,24 @@ import type { DimensionId, DimensionScore, EvidenceSpan, InterviewQuestion } fro
 /**
  * Scores one answer across every evidence dimension.
  *
- * Two implementations are planned: the heuristic evaluator below, which is
- * deterministic and needs no API key, and an LLM evaluator (phase 4) that reads
- * the rubric bands. Both must cite spans, so a score can always be traced back to
- * words the candidate actually said.
+ * Two implementations: the heuristic evaluator below, which is deterministic and
+ * needs no API key, and `LlmEvaluator`, which reads the answer. Both must cite
+ * spans, so a score can always be traced back to words the candidate actually
+ * said.
  */
 export interface Evaluator {
   readonly name: string;
+  /**
+   * Dimensions this evaluator can only approximate, and must therefore admit to.
+   *
+   * Not every dimension is measurable the same way. Whether a number is present
+   * is a fact a regex can establish; whether an answer is worth retelling is a
+   * judgement, and a regex counting proper nouns is standing in for a reader.
+   * Both evaluators return a score for every dimension - the composite is a
+   * weighted sum and a gap would silently deflate it - so the honest thing is to
+   * say which of those scores are estimates rather than to withhold them.
+   */
+  readonly approximates: readonly DimensionId[];
   evaluate(question: InterviewQuestion, answer: string): Promise<DimensionScore[]>;
 }
 
@@ -276,6 +287,15 @@ function score(
  * the scoring pipeline without burning API calls.
  */
 export class HeuristicEvaluator implements Evaluator {
+  /**
+   * The story dimensions. Story shape is inferred from turn and scene phrases,
+   * and memorability from named entities and vivid language - both are proxies
+   * for something only a reader can settle. The eval corpus documents the cost:
+   * `keyword-stuffed` still scores in the sevens because every surface feature
+   * it looks for is present and none of it means anything.
+   */
+  readonly approximates = ["story-shape", "memorability"] as const;
+
   readonly name = "heuristic";
 
   async evaluate(_question: InterviewQuestion, answer: string): Promise<DimensionScore[]> {
@@ -297,7 +317,10 @@ export class HeuristicEvaluator implements Evaluator {
     const proper = properNounSpans(answer);
 
     const value =
-      3.5 + Math.min(concrete.length, 4) * 0.9 + Math.min(proper.length, 4) * 0.7 - platitudes.length * 1.8;
+      3.5 +
+      Math.min(concrete.length, 4) * 0.9 +
+      Math.min(proper.length, 4) * 0.7 -
+      platitudes.length * 1.8;
 
     const anchors = [
       concrete.length ? `${concrete.length} time/place marker${plural(concrete.length)}` : null,
@@ -447,7 +470,10 @@ export class HeuristicEvaluator implements Evaluator {
     if (wordCount(answer) < 60) value = Math.min(value, 3);
 
     const held: string[] = [];
-    if (named.length) held.push(`${named.length} named ${named.length === 1 ? "person or place" : "people or places"}`);
+    if (named.length)
+      held.push(
+        `${named.length} named ${named.length === 1 ? "person or place" : "people or places"}`,
+      );
     if (vivid.length) held.push("someone actually speaking");
     if (odd.length) held.push("a figure that sticks");
 

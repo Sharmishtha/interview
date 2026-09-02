@@ -16,8 +16,11 @@
     "test:watch": "vitest",
     "lint": "eslint src server worker tests web/src",
     "format": "prettier --write .",
-    "deploy": "npm run build && wrangler deploy",
-    "cf:dev": "npm run build && wrangler dev"
+    "cf:dev": "npm run build && wrangler dev",
+    "deploy:staging": "npm run build && wrangler deploy --env staging",
+    "deploy:prod": "npm run build && wrangler deploy --env production",
+    "tail:staging": "wrangler tail --env staging",
+    "tail:prod": "wrangler tail --env production"
   },
   "engines": {
     "node": ">=20"

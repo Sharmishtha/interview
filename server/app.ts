@@ -186,8 +186,9 @@ app.post("/api/score", async (c) => {
     const session = sessionFrom(await c.req.json<ScoreRequest>());
     if (isRefusal(session)) return c.json({ error: session.error }, session.status);
 
-    const answerScores = await scoreAnswers(session, new HeuristicEvaluator());
-    return c.json(buildScorecard(session, answerScores));
+    const evaluator = new HeuristicEvaluator();
+    const answerScores = await scoreAnswers(session, evaluator);
+    return c.json(buildScorecard(session, answerScores, evaluator));
   } catch (error) {
     return c.json({ error: message(error) }, 500);
   }
@@ -226,7 +227,7 @@ app.post("/api/score/llm", async (c) => {
     }));
 
     return c.json({
-      ...buildScorecard(session, answerScores),
+      ...buildScorecard(session, answerScores, evaluator),
       evaluator: evaluator.name,
       headlines: reviews.map(({ record, review }) => ({
         questionId: record.questionId,

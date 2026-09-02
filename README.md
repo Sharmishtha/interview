@@ -34,9 +34,9 @@ The ElevenLabs API key lives only on the server; the browser never sees it.
 
 ## The panel
 
-| Seat | Asks about |
-| --- | --- |
-| **Ravi Menon**, CTO | Raise the Bar, Act with Courage, Build Resilience, Be Real, Grow Groundbreakers |
+| Seat                      | Asks about                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| **Ravi Menon**, CTO       | Raise the Bar, Act with Courage, Build Resilience, Be Real, Grow Groundbreakers  |
 | **Claire Whitfield**, CEO | Turns Vision Into Action, Makes Smart Decisions, Energizes the Team, Lead Across |
 
 ## The rubric
@@ -44,11 +44,11 @@ The ElevenLabs API key lives only on the server; the browser never sees it.
 Straight from the interview guide: three pillars, three competencies each, nine in total. A
 session asks **one top-line question per pillar**, as the guide's process requires.
 
-| Pillar | Competencies |
-| --- | --- |
+| Pillar                | Competencies                                                          |
+| --------------------- | --------------------------------------------------------------------- |
 | **Plan with Purpose** | Turns Vision Into Action · Makes Smart Decisions · Energizes the Team |
-| **Pursue Excellence** | Raise the Bar · Act with Courage · Build Resilience |
-| **Prioritize People** | Be Real · Lead Across · Grow Groundbreakers |
+| **Pursue Excellence** | Raise the Bar · Act with Courage · Build Resilience                   |
+| **Prioritize People** | Be Real · Lead Across · Grow Groundbreakers                           |
 
 All nine carry equal weight, because the guide treats the three pillars as equally required.
 
@@ -61,14 +61,14 @@ the guide's own wording.
 interviewers to establish the Situation, Task, Action, Result and Learning, so the dimensions are
 aligned to STAR-L:
 
-| Dimension | Weight |
-| --- | --- |
-| STAR-L structure | 0.20 |
-| Specificity | 0.18 |
-| Quantified outcomes | 0.18 |
-| Learning | 0.17 |
-| Ownership | 0.15 |
-| Scope & scale | 0.12 |
+| Dimension           | Weight |
+| ------------------- | ------ |
+| STAR-L structure    | 0.20   |
+| Specificity         | 0.18   |
+| Quantified outcomes | 0.18   |
+| Learning            | 0.17   |
+| Ownership           | 0.15   |
+| Scope & scale       | 0.12   |
 
 **Probes are data, not improvisation.** Every question carries the guide's optional probing
 questions, one of which the panel asks live as a follow-up. The rest appear on the scorecard so
@@ -76,10 +76,11 @@ you can rehearse them.
 
 **Pressure questions.** Alongside the guide's nine top-line questions there is a harder variant
 for each principle, every one of which requires owning a failure rather than narrating a success
+
 - a failed strategy, a promotion that did not work out, a time you stayed silent. That is where
-the guide's negative signals actually surface, because a rehearsed candidate can carry the
-standard questions on prepared material. Request them with `?intensity=pressure`, or
-`?intensity=mixed` to draw from both pools.
+  the guide's negative signals actually surface, because a rehearsed candidate can carry the
+  standard questions on prepared material. Request them with `?intensity=pressure`, or
+  `?intensity=mixed` to draw from both pools.
 
 ## Coaching: how to reach 8+
 
@@ -128,10 +129,10 @@ one, or if a case leaves its expected band. It also runs inside `npm test`.
 
 Two cases are marked `knownLimitation` — reported but not enforced:
 
-| Case | Scores | Why it is wrong |
-| --- | --- | --- |
-| `keyword-stuffed` | 8.36 | Semantically empty but hits every surface pattern — outscores three of four genuine strong answers |
-| `fake-humility` | 6.29 | A humblebrag in hindsight language reads as real self-awareness |
+| Case              | Scores | Why it is wrong                                                                                    |
+| ----------------- | ------ | -------------------------------------------------------------------------------------------------- |
+| `keyword-stuffed` | 8.36   | Semantically empty but hits every surface pattern — outscores three of four genuine strong answers |
+| `fake-humility`   | 6.29   | A humblebrag in hindsight language reads as real self-awareness                                    |
 
 These are the standing argument for the LLM evaluator in phase 4, and they are documented
 rather than asserted away.
@@ -184,12 +185,15 @@ cp .env.example .env                            # then edit: ELEVENLABS_API_KEY=
 npm run dev                                     # API on :3001, UI on :5173
 #    open http://localhost:5173 - you should HEAR the first question
 
-# 5. Deploy (a second terminal, same folder)
-npx wrangler login                              # opens a browser, click Allow
-npx wrangler secret put ELEVENLABS_API_KEY      # paste the same key
-npx wrangler secret put APP_PASSWORD            # gates the deployed app
-npx wrangler secret put ANTHROPIC_API_KEY       # optional: the second-opinion score
-npm run deploy                                  # prints your live URL
+# 5. Deploy to staging (a second terminal, same folder)
+npx wrangler login                                        # opens a browser, click Allow
+npx wrangler secret put ELEVENLABS_API_KEY --env staging  # paste the same key
+npx wrangler secret put APP_PASSWORD       --env staging  # gates the deployed app
+npx wrangler secret put ANTHROPIC_API_KEY  --env staging  # optional: LLM scoring
+npm run deploy:staging                                    # staging.getoutloud.ai
+
+# 6. Once staging looks right, repeat the secrets with --env production and:
+npm run deploy:prod                                       # getoutloud.ai
 ```
 
 > **The key must be the secret, not the key ID.** ElevenLabs shows the secret only once, at the
@@ -199,9 +203,11 @@ npm run deploy                                  # prints your live URL
 > **`npm run dev` fails with an error object containing `port: 3001`?** That is `EADDRINUSE` - an
 > earlier run is still holding the port, and the terminal looks frozen because the frontend half
 > kept going. Free it and start again:
+>
 > ```bash
 > lsof -ti:3001 | xargs kill -9                 # macOS / Linux
 > ```
+>
 > ```powershell
 > Get-NetTCPConnection -LocalPort 3001 | Select-Object -Expand OwningProcess |
 >   ForEach-Object { Stop-Process -Id $_ -Force }   # Windows
@@ -286,17 +292,19 @@ the coaching — works identically, because they run on the transcript rather th
 
 ## Commands
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | API + frontend with reload — the one you want day to day |
-| `npm run build` | Type-check the server, build the frontend |
-| `npm start` | Serve the built app from the API alone on :3001 |
-| `npm run deploy` | Build, then `wrangler deploy` to Cloudflare |
-| `npm run cf:dev` | Run the Worker locally under workerd |
-| `npm run demo` | Print a scorecard in the terminal, no browser or key needed |
-| `npm run eval` | Run the evaluation set against the rubric |
-| `npm test` | Full test suite (74 tests) |
-| `npm run lint` / `npm run format` | Lint / format |
+| Command                                      | Description                                                 |
+| -------------------------------------------- | ----------------------------------------------------------- |
+| `npm run dev`                                | API + frontend with reload — the one you want day to day    |
+| `npm run build`                              | Type-check the server, build the frontend                   |
+| `npm start`                                  | Serve the built app from the API alone on :3001             |
+| `npm run deploy:staging`                     | Build, then deploy to `staging.getoutloud.ai`               |
+| `npm run deploy:prod`                        | Build, then deploy to `getoutloud.ai`                       |
+| `npm run tail:staging` / `npm run tail:prod` | Live logs from that environment                             |
+| `npm run cf:dev`                             | Run the Worker locally under workerd                        |
+| `npm run demo`                               | Print a scorecard in the terminal, no browser or key needed |
+| `npm run eval`                               | Run the evaluation set against the rubric                   |
+| `npm test`                                   | Full test suite (137 tests)                                 |
+| `npm run lint` / `npm run format`            | Lint / format                                               |
 
 Two useful details:
 
@@ -305,24 +313,102 @@ Two useful details:
 - **`PORT=4000 npm run dev:api`** — moves the API if :3001 is taken. Update the `proxy` target in
   `web/vite.config.ts` to match.
 
+## Getting an Anthropic API key
+
+Only needed for the second-opinion score and for scoring custom questions. Everything else works
+without it.
+
+1. Go to **https://console.anthropic.com** and sign in (or create an account).
+2. Click **Get API keys**, or go to **Settings → API keys** from the left sidebar.
+3. You need credit on the account before a key will work: **Settings → Billing → Add credits**.
+   $5 is plenty to try it — a scored answer is a fraction of a cent.
+4. **API keys → Create key**. Give it a name like `interview-dev`, and choose **Workspace:
+   Default** unless you have set up others.
+5. **Copy the key now.** It starts `sk-ant-api03-…` and is shown exactly once. If you lose it,
+   delete it and make another; there is no way to read it back.
+6. Put it where it is needed:
+   - **Locally** — add `ANTHROPIC_API_KEY=sk-ant-…` to `.env` in the repo root and restart
+     `npm run dev`.
+   - **Deployed** — `npx wrangler secret put ANTHROPIC_API_KEY --env staging`, then again with
+     `--env production`.
+
+Make **two separate keys**, one named `interview-staging` and one `interview-production`. It costs
+nothing and means a leak from one does not require rotating the other. The same goes for
+ElevenLabs.
+
+Check it took: `curl https://staging.getoutloud.ai/api/health` should return
+`"llmEvaluator": true`.
+
 ## Deploying to Cloudflare
 
 The API is written with [Hono](https://hono.dev) and runs unchanged in both places: under
 Node locally (`server/node.ts`) and as a Cloudflare Worker (`worker/index.ts`). There is one
 set of routes in `server/app.ts`, so the two cannot drift.
 
+### Two environments, deliberately separate
+
+`wrangler.toml` defines two named environments. They share this repository and **nothing else** —
+separate Workers, separate secrets, separate hostnames — so a key set on staging is not on
+production, and a bad deploy to staging cannot touch what is live.
+
+|            | Worker                 | Hostname                             |
+| ---------- | ---------------------- | ------------------------------------ |
+| Staging    | `interview-staging`    | `staging.getoutloud.ai`              |
+| Production | `interview-production` | `getoutloud.ai`, `www.getoutloud.ai` |
+
+**Every command must name its environment.** A bare `wrangler deploy` publishes the top-level
+config, which is neither of these — that is why `npm run deploy` no longer exists.
+
+### First time: one-off setup
+
+Run these on your own machine, from the repo root. `getoutloud.ai` needs to already be on your
+Cloudflare account.
+
 ```bash
+# 1. Authorise wrangler. Opens a browser.
 npx wrangler login
-npx wrangler secret put ELEVENLABS_API_KEY    # paste the key when prompted
-npm run deploy                                # builds, then wrangler deploy
+
+# 2. Secrets for staging. Each prompts, and the value is never echoed or stored in the repo.
+npx wrangler secret put ELEVENLABS_API_KEY --env staging
+npx wrangler secret put APP_PASSWORD       --env staging
+npx wrangler secret put ANTHROPIC_API_KEY  --env staging   # optional
+
+# 3. Same again for production — different password, different keys.
+npx wrangler secret put ELEVENLABS_API_KEY --env production
+npx wrangler secret put APP_PASSWORD       --env production
+npx wrangler secret put ANTHROPIC_API_KEY  --env production
+
+# 4. Ship staging first, always.
+npm run deploy:staging
 ```
 
-`wrangler.toml` serves `web/dist` through the `[assets]` binding, so Cloudflare returns the
-frontend directly and the Worker runs only for `/api/*`. `npm run cf:dev` runs the Worker
-locally under workerd if you want to check it before shipping.
+The first deploy of each environment creates its custom domain and issues the certificate. That
+takes a minute or two, and until it finishes the hostname may return a 5xx or a certificate
+warning — wait it out rather than redeploying.
 
-The key is a Wrangler **secret**, never a `[vars]` entry and never in the repo — `.env` and
-`dotenv` do not exist on Workers.
+### Every time after that
+
+```bash
+npm run deploy:staging      # then actually open staging.getoutloud.ai and run one interview
+npm run deploy:prod
+```
+
+Check what a deployment can do before trusting it:
+
+```bash
+curl https://staging.getoutloud.ai/api/health
+# {"ok":true,"elevenlabs":true,"llmEvaluator":true}
+```
+
+`npm run cf:dev` runs the Worker locally under workerd first if you want to check before shipping,
+and `npm run tail:prod` streams live logs when something is wrong in production.
+
+Secrets are Wrangler **secrets**, never `[vars]` entries and never in the repo — `.env` and
+`dotenv` do not exist on Workers. To see what an environment holds (names only, never values):
+
+```bash
+npx wrangler secret list --env production
+```
 
 ### Lock it down before you share the URL
 
@@ -333,9 +419,12 @@ it spends your ElevenLabs quota: every question asked is a TTS call, every answe
 prompt:
 
 ```bash
-npx wrangler secret put APP_PASSWORD
-npm run deploy
+npx wrangler secret put APP_PASSWORD --env production
+npm run deploy:prod
 ```
+
+Use a different password on each environment. Sharing one means a link you gave someone for
+staging also opens production.
 
 Any username works - only the password is checked, so there is a single thing to share. The
 Worker runs ahead of the static assets (`run_worker_first` in `wrangler.toml`), so the prompt
@@ -351,7 +440,7 @@ anything beyond that, use Access.
 [Access](https://developers.cloudflare.com/cloudflare-one/applications/) gates the app at the
 edge with real identity - per-person email policies, revocation, and logs - and needs no code.
 
-**Check this prerequisite first:** Access policies apply to hostnames in a zone *you* have added
+**Check this prerequisite first:** Access policies apply to hostnames in a zone _you_ have added
 to Cloudflare. A `*.workers.dev` URL sits in Cloudflare's own zone, so **you cannot put Access in
 front of it**. You need a domain on your account, with the Worker bound to it as a custom domain.
 If you do not have one, either add a domain or keep the deployment private another way.
@@ -370,17 +459,17 @@ Until you have a domain on the account, the password gate above is the control t
 
 ## Troubleshooting
 
-| What you see | What it means |
-| --- | --- |
-| `ELEVENLABS_API_KEY is not set` | No `.env`, or it is not in the repo root, or the server was started before you created it. Fix it and restart. |
-| `Status code: 401` / `invalid_api_key` | The key is wrong, revoked, or has trailing whitespace. Check for a stray quote — the value needs no quotes. |
-| `Host not in allowlist` or a proxy 403 | Your network is blocking `api.elevenlabs.io`, usually a corporate proxy or VPN. The key is fine; the request never left your machine. |
-| `Status code: 429` | ElevenLabs rate limit or an exhausted character quota on your plan. |
-| `The second-opinion evaluator is not configured` | No `ANTHROPIC_API_KEY`. The ordinary score is unaffected — that evaluator needs no key and never calls out. |
-| Question text appears but no audio | Browser autoplay blocking. Press **Replay**; a click counts as the gesture browsers require. |
-| **Record answer** is greyed out | The browser exposes no recorder. Use **Type instead**, and check you are on `localhost` rather than a LAN IP. |
-| Microphone permission never prompts | Same secure-origin rule — use `http://localhost:5173`. |
-| `EADDRINUSE :3001` | Something already holds the port. `PORT=4000 npm run dev:api`, or stop the other process. |
+| What you see                                     | What it means                                                                                                                         |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ELEVENLABS_API_KEY is not set`                  | No `.env`, or it is not in the repo root, or the server was started before you created it. Fix it and restart.                        |
+| `Status code: 401` / `invalid_api_key`           | The key is wrong, revoked, or has trailing whitespace. Check for a stray quote — the value needs no quotes.                           |
+| `Host not in allowlist` or a proxy 403           | Your network is blocking `api.elevenlabs.io`, usually a corporate proxy or VPN. The key is fine; the request never left your machine. |
+| `Status code: 429`                               | ElevenLabs rate limit or an exhausted character quota on your plan.                                                                   |
+| `The second-opinion evaluator is not configured` | No `ANTHROPIC_API_KEY`. The ordinary score is unaffected — that evaluator needs no key and never calls out.                           |
+| Question text appears but no audio               | Browser autoplay blocking. Press **Replay**; a click counts as the gesture browsers require.                                          |
+| **Record answer** is greyed out                  | The browser exposes no recorder. Use **Type instead**, and check you are on `localhost` rather than a LAN IP.                         |
+| Microphone permission never prompts              | Same secure-origin rule — use `http://localhost:5173`.                                                                                |
+| `EADDRINUSE :3001`                               | Something already holds the port. `PORT=4000 npm run dev:api`, or stop the other process.                                             |
 
 ## Roadmap
 

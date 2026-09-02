@@ -11,6 +11,52 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = true
 
-# Neither secret belongs here. Set them with:
-#   npx wrangler secret put ELEVENLABS_API_KEY
-#   npx wrangler secret put APP_PASSWORD
+# ---------------------------------------------------------------------------
+# Environments
+# ---------------------------------------------------------------------------
+#
+# Two Workers, two sets of secrets, two hostnames. They share this file and
+# nothing else: a key put on staging is not on production, and a bad deploy to
+# staging cannot touch what is live.
+#
+# Every wrangler command below MUST name its environment. `wrangler deploy` with
+# no --env deploys the top-level worker above, which is neither of these.
+#
+#   npm run deploy:staging     -> staging.getoutloud.ai
+#   npm run deploy:prod        -> getoutloud.ai and www.getoutloud.ai
+#
+# Secrets are per environment and are never written here:
+#   npx wrangler secret put ELEVENLABS_API_KEY --env staging
+#   npx wrangler secret put ANTHROPIC_API_KEY  --env staging   # optional
+#   npx wrangler secret put APP_PASSWORD       --env staging
+#   ...and again with --env production, with a different password.
+
+[env.staging]
+name = "interview-staging"
+
+[env.staging.assets]
+directory = "./web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[env.staging.routes]]
+pattern = "staging.getoutloud.ai"
+custom_domain = true
+
+[env.production]
+name = "interview-production"
+
+[env.production.assets]
+directory = "./web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[[env.production.routes]]
+pattern = "getoutloud.ai"
+custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.getoutloud.ai"
+custom_domain = true

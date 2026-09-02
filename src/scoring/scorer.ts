@@ -106,7 +106,11 @@ export function overallScore(competencyScores: CompetencyScore[]): number {
   return round(weighted / totalWeight);
 }
 
-export function buildScorecard(session: InterviewSession, answerScores: AnswerScore[]): Scorecard {
+export function buildScorecard(
+  session: InterviewSession,
+  answerScores: AnswerScore[],
+  evaluator?: Pick<Evaluator, "name" | "approximates">,
+): Scorecard {
   const competencyScores = rollUpCompetencies(answerScores, session.questions);
   const ranked = [...competencyScores].sort((a, b) => b.value - a.value);
   const take = Math.min(2, Math.floor(ranked.length / 2));
@@ -139,6 +143,10 @@ export function buildScorecard(session: InterviewSession, answerScores: AnswerSc
       session.questions,
       answerById,
     ),
+    evaluatedBy: {
+      name: evaluator?.name ?? "unknown",
+      approximates: [...(evaluator?.approximates ?? [])],
+    },
   };
 }
 

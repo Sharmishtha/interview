@@ -184,6 +184,13 @@ function normalizeWithOffsets(text: string): { normalized: string; offsets: numb
 export class LlmEvaluator implements Evaluator {
   readonly name = `llm:${LLM_EVALUATOR_MODEL}`;
 
+  /**
+   * Nothing. A model reading the answer judges story shape and memorability the
+   * way the rubric means them, which is the reason this evaluator exists - not
+   * a claim that it is right, only that it is not standing in for a reader.
+   */
+  readonly approximates = [] as const;
+
   constructor(private readonly client: Anthropic) {}
 
   async evaluate(question: InterviewQuestion, answer: string): Promise<DimensionScore[]> {

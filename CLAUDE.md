@@ -5,7 +5,7 @@ using it. Read `README.md` for what it does and `BACKLOG.md` for what is next an
 
 ## The boundary that governs the product
 
-This rehearses *you*. It does not assess a third-party candidate for an employer.
+This rehearses _you_. It does not assess a third-party candidate for an employer.
 
 The moment it scores a candidate on an employer's behalf it becomes an automated employment
 decision tool, picking up NYC Local Law 144 bias audits, EU AI Act high-risk obligations, and the
@@ -35,7 +35,7 @@ which is why the speech wrappers take the API key as an argument rather than rea
 **Every score cites spans.** `tests/evaluator.test.ts` asserts
 `answer.slice(span.start, span.end) === span.text`. That constraint is what stops the LLM
 evaluator inventing evidence: a model cannot count characters, so `LlmEvaluator` asks for
-*quotations* and `locateQuote` finds them. Re-wrapped whitespace is forgiven; a paraphrase is
+_quotations_ and `locateQuote` finds them. Re-wrapped whitespace is forgiven; a paraphrase is
 dropped and reported in `unverifiedQuotes`. Do not relax either half.
 
 **The eval corpus is the scorer's test suite.** `npm run eval` fails if tier means stop
@@ -59,6 +59,28 @@ directions are in `/home/user/design` as `.dc.html` artboards.
 **The narrative is derived, never decorative.** Every sentence `narrative.ts` produces comes from
 a score that was actually computed, including the refusal to congratulate a set of answers where
 nothing landed. Do not add encouragement the evidence does not support.
+
+**Staging and production are separate Workers, and every wrangler command names one.**
+`wrangler.toml` defines `env.staging` and `env.production` with different Worker names, secrets
+and hostnames. A bare `wrangler deploy` publishes the top-level config, which is neither — that
+is why the `deploy` script was removed in favour of `deploy:staging` and `deploy:prod`. Do not
+add one back.
+
+**Substance and story are weighted deliberately: 0.75 / 0.25.** `GROUP_WEIGHTS` in
+`src/rubric/dimensions.ts` states the intended split and `tests/rubric.test.ts` asserts it, so
+changing one dimension's weight cannot quietly move the balance of the whole rubric. Story gets
+enough to change a grade and not enough to carry one: a beautifully told empty answer must not
+beat a substantive one.
+
+**An evaluator declares what it can only approximate.** `Evaluator.approximates` — the story
+dimensions for the heuristic, nothing for the LLM. Both still return a score for every dimension,
+because the composite is a weighted sum and a gap would deflate it; the honest move is to mark
+the estimates in the report rather than withhold them. Do not drop the marker to tidy the UI.
+
+**Practice history is client-side on purpose.** `web/src/storage.ts`, localStorage, this browser
+only. Transcripts of someone rehearsing their worst management decisions are sensitive, and
+server storage turns a practice tool into a retention question that has not been answered.
+Clearing site data must stay a complete delete until it has been.
 
 **Coaching lifts are priced, not guessed.** The composite is a weighted sum of dimensions, so the
 value of any single improvement is exactly computable. Keep it that way — a suggestion without a
@@ -95,7 +117,7 @@ Each of these cost real debugging time. They are not theoretical.
   `server/`; the web app uses bundler resolution and extensionless imports.
 - The frontend declares its own view types in `web/src/types.ts` rather than importing server
   code. The API is the contract; keep them decoupled.
-- Comments explain *why*, not *what*. Several in this codebase record a bug that was fixed —
+- Comments explain _why_, not _what_. Several in this codebase record a bug that was fixed —
   leave those in place.
 - Verify in the running app, not just via types. Playwright against `dist` has caught several
   things tests did not.
@@ -104,11 +126,12 @@ Each of these cost real debugging time. They are not theoretical.
 
 ```bash
 npm run dev      # API :3001 + UI :5173
-npm test         # 78 tests
+npm test         # 137 tests
 npm run eval     # scorer against the labelled corpus
 npm run lint
 npm run build
-npm run deploy   # build + wrangler deploy
+npm run deploy:staging   # staging.getoutloud.ai
+npm run deploy:prod      # getoutloud.ai
 ```
 
 `?seed=0` pins the question set for repeatable rehearsal; `?intensity=pressure` draws the harder

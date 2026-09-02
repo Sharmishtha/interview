@@ -893,6 +893,19 @@ function Report({
     () => new Map(interview.questions.map((q) => [q.id, q.text])),
     [interview],
   );
+  /**
+   * Dimensions this evaluator could only estimate. Marked in the detail rather
+   * than hidden: a score someone is being coached against should say how
+   * confident it is entitled to be.
+   */
+  const approximated = useMemo(
+    () => new Set(scorecard.evaluatedBy?.approximates ?? []),
+    [scorecard],
+  );
+  const estimatedNames = useMemo(
+    () => [...approximated].map((id) => dimensionName.get(id) ?? id).join(" and "),
+    [approximated, dimensionName],
+  );
 
   return (
     <main className="shell">
@@ -1067,6 +1080,14 @@ function Report({
         </div>
 
         <h2 className="section">Answer detail</h2>
+        {approximated.size > 0 && (
+          <p className="estimate-note">
+            {estimatedNames} {approximated.size === 1 ? "is" : "are"} estimated here. They are
+            judgements about how the answer lands, and this evaluator matches surface features
+            rather than reading it — a named person, a vivid phrase, a turn of events. Everything
+            else below is measured from what the answer contains.
+          </p>
+        )}
         <div className="answers">
           {scorecard.answerScores.map((answer) => (
             <article className="answer" key={answer.questionId}>
@@ -1085,7 +1106,15 @@ function Report({
                         {dimensionName.get(dimension.dimension) ?? dimension.dimension}{" "}
                         {dimension.value.toFixed(1)}
                       </span>
-                      <span className="notes__text">{dimension.rationale}</span>
+                      <span className="notes__text">
+                        {dimension.rationale}
+                        {approximated.has(dimension.dimension) && (
+                          <em className="estimate" title="Matched on surface features, not read">
+                            {" "}
+                            estimated
+                          </em>
+                        )}
+                      </span>
                     </li>
                   ))}
               </ul>

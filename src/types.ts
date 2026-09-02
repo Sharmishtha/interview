@@ -63,10 +63,24 @@ export type DimensionId =
   | "story-shape"
   | "memorability";
 
+/**
+ * What a dimension is measuring.
+ *
+ * "substance" is what the answer contains - the situation, the numbers, what you
+ * personally owned, what you took from it. "story" is how it lands: whether it
+ * has a turn in it and whether anyone could retell it a week later.
+ *
+ * The split matters because only substance can be honestly pattern-matched. A
+ * regex can see that a number is present; it cannot tell whether the strategy
+ * was sound or whether the story was worth hearing. See `Evaluator.approximates`.
+ */
+export type DimensionGroup = "substance" | "story";
+
 export interface EvidenceDimension {
   id: DimensionId;
   name: string;
   description: string;
+  group: DimensionGroup;
   /** Relative weight within an answer's composite; weights sum to 1. */
   weight: number;
 }
@@ -221,6 +235,12 @@ export interface Scorecard {
   guidance: AnswerGuidance[];
   /** What a coach would say before quoting any of the numbers above. */
   narrative: ScorecardNarrative;
+  /**
+   * Which evaluator produced these scores, and which of its dimension scores are
+   * estimates. Shown to the candidate rather than kept internal: a score you are
+   * being coached against should say how confident it is entitled to be.
+   */
+  evaluatedBy: { name: string; approximates: DimensionId[] };
 }
 
 export interface InterviewSession {

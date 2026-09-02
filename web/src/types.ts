@@ -34,6 +34,8 @@ export interface RubricEntry {
   pillar?: string;
   description: string;
   positiveSignals?: string[];
+  /** Dimensions only: "substance" (what the answer contains) or "story" (how it lands). */
+  group?: "substance" | "story";
 }
 
 export interface Interview {
@@ -104,6 +106,7 @@ export interface Scorecard {
   gaps: string[];
   guidance: AnswerGuidance[];
   narrative: ScorecardNarrative;
+  evaluatedBy: { name: string; approximates: string[] };
 }
 
 /** The paid second opinion: the same scorecard, plus what the model said about it. */

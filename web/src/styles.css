@@ -1333,3 +1333,26 @@ body {
   border-radius: var(--card);
   padding: 16px 20px;
 }
+
+/* A dimension the evaluator estimated rather than measured. */
+.estimate {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.estimate-note {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--surface);
+  border-radius: var(--card);
+  padding: 14px 18px;
+}
