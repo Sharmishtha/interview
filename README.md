@@ -185,15 +185,19 @@ cp .env.example .env                            # then edit: ELEVENLABS_API_KEY=
 npm run dev                                     # API on :3001, UI on :5173
 #    open http://localhost:5173 - you should HEAR the first question
 
-# 5. Deploy to staging (a second terminal, same folder)
+# 5. Deploy to staging (a second terminal, same folder). Steps 5 and 6 are
+#    ONE-OFF: secrets live on the Worker and survive every later deploy.
 npx wrangler login                                        # opens a browser, click Allow
 npx wrangler secret put ELEVENLABS_API_KEY --env staging  # paste the same key
 npx wrangler secret put APP_PASSWORD       --env staging  # gates the deployed app
-npx wrangler secret put ANTHROPIC_API_KEY  --env staging  # optional: LLM scoring
+npx wrangler secret put ANTHROPIC_API_KEY  --env staging  # optional: the second opinion
 npm run deploy:staging                                    # staging.getoutloud.ai
 
 # 6. Once staging looks right, repeat the secrets with --env production and:
 npm run deploy:prod                                       # getoutloud.ai
+
+# From then on, every deploy is just:
+git pull && npm install && npm run deploy:staging
 ```
 
 > **The key must be the secret, not the key ID.** ElevenLabs shows the secret only once, at the
@@ -359,32 +363,84 @@ production, and a bad deploy to staging cannot touch what is live.
 **Every command must name its environment.** A bare `wrangler deploy` publishes the top-level
 config, which is neither of these — that is why `npm run deploy` no longer exists.
 
-### First time: one-off setup
+### First time: one-off setup, per environment
 
 Run these on your own machine, from the repo root. `getoutloud.ai` needs to already be on your
 Cloudflare account.
 
+**You do this once per environment, not once per deploy.** Secrets are stored on the Worker itself,
+not baked into the bundle, so `wrangler deploy` never clears them — see
+[What you actually repeat](#what-you-actually-repeat) below.
+
 ```bash
-# 1. Authorise wrangler. Opens a browser.
+# 1. Authorise wrangler. Opens a browser. This also persists.
 npx wrangler login
 
-# 2. Secrets for staging. Each prompts, and the value is never echoed or stored in the repo.
-npx wrangler secret put ELEVENLABS_API_KEY --env staging
-npx wrangler secret put APP_PASSWORD       --env staging
-npx wrangler secret put ANTHROPIC_API_KEY  --env staging   # optional
+# 2. All three staging secrets in one go. Wrangler reads KEY=VALUE from stdin.
+cat <<'EOF' | npx wrangler secret bulk --env staging
+ELEVENLABS_API_KEY=sk_your_elevenlabs_key
+APP_PASSWORD=a-password-for-staging
+ANTHROPIC_API_KEY=sk-ant-your_key
+EOF
 
-# 3. Same again for production — different password, different keys.
-npx wrangler secret put ELEVENLABS_API_KEY --env production
-npx wrangler secret put APP_PASSWORD       --env production
-npx wrangler secret put ANTHROPIC_API_KEY  --env production
+# 3. Same again for production — a different password, and its own keys.
+cat <<'EOF' | npx wrangler secret bulk --env production
+ELEVENLABS_API_KEY=sk_your_elevenlabs_key
+APP_PASSWORD=a-different-password-for-production
+ANTHROPIC_API_KEY=sk-ant-your_key
+EOF
 
 # 4. Ship staging first, always.
 npm run deploy:staging
 ```
 
+`wrangler secret put NAME --env staging` still works if you would rather be prompted one at a time
+and keep the values out of your shell history — with `bulk`, the heredoc above avoids that too, but
+the values are visible to anything reading your terminal.
+
 The first deploy of each environment creates its custom domain and issues the certificate. That
 takes a minute or two, and until it finishes the hostname may return a 5xx or a certificate
 warning — wait it out rather than redeploying.
+
+### What you actually repeat
+
+Every deploy after the first is two commands:
+
+```bash
+git pull && npm install
+npm run deploy:staging
+```
+
+That is it. Nothing about the secrets is repeated, because:
+
+|                                                                      | Lives where                            | Re-applied on deploy?                                                                             |
+| -------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ELEVENLABS_API_KEY`, `ANTHROPIC_API_KEY`, `APP_PASSWORD`, `SPONSOR` | On the Worker, as Wrangler **secrets** | **No.** They persist until you change or delete them.                                             |
+| `SECOND_OPINION`, `SPONSOR_SLOT`                                     | `[env.*.vars]` in `wrangler.toml`      | **Yes**, from the file, every time. That is the point — they are decisions, reviewable in a diff. |
+| Your Cloudflare login                                                | `~/.config/.wrangler/` on your machine | Persists. Re-run `wrangler login` only if the token expires or you move machines.                 |
+
+The only reason you set secrets twice at the start is that staging and production are **separate
+Workers**. A secret on one is not on the other, which is the isolation you wanted.
+
+To see what an environment holds — names only, never values:
+
+```bash
+npx wrangler secret list --env staging
+```
+
+To rotate one, `secret put` it again; the new value takes effect immediately, without a deploy.
+
+> **Never put a secret's name in `[vars]`.** Keep the two sets of names disjoint, or you will spend
+> an afternoon working out why a key you know you set is not the one in use.
+
+### After every deploy
+
+```bash
+APP_PASSWORD=your-staging-password npm run smoke -- https://staging.getoutloud.ai
+```
+
+Checks the things that fail quietly: a secret that did not get set, an asset that did not upload, a
+flag left on. It never spends money — on the paid route it asserts the refusal, not the result.
 
 ### The sponsor slot
 

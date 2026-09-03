@@ -60,6 +60,11 @@ directions are in `/home/user/design` as `.dc.html` artboards.
 a score that was actually computed, including the refusal to congratulate a set of answers where
 nothing landed. Do not add encouragement the evidence does not support.
 
+**Secrets are set once per environment, not once per deploy.** They live on the Worker and survive
+`wrangler deploy`; the `[env.*.vars]` flags come from `wrangler.toml` and are re-applied every time.
+That asymmetry is the design: keys persist quietly, decisions show up in a diff. Never give a var
+the same name as a secret.
+
 **Staging and production are separate Workers, and every wrangler command names one.**
 `wrangler.toml` defines `env.staging` and `env.production` with different Worker names, secrets
 and hostnames. A bare `wrangler deploy` publishes the top-level config, which is neither — that
