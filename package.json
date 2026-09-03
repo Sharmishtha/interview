@@ -20,7 +20,8 @@
     "deploy:staging": "npm run build && wrangler deploy --env staging",
     "deploy:prod": "npm run build && wrangler deploy --env production",
     "tail:staging": "wrangler tail --env staging",
-    "tail:prod": "wrangler tail --env production"
+    "tail:prod": "wrangler tail --env production",
+    "smoke": "node scripts/smoke.mjs"
   },
   "engines": {
     "node": ">=20"
