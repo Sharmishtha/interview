@@ -35,8 +35,11 @@ export function LogoMark({ size = 24 }: { size?: number }) {
 }
 
 /**
- * Mark plus wordmark. The mark carries the accent and the words stay in text
- * colour: two coloured things beside each other at 17px turns into a smudge.
+ * Mark plus wordmark.
+ *
+ * The mark carries the accent and the words stay in text colour: two coloured
+ * things beside each other at 17px turn into a smudge. "Get" is set lighter so
+ * the eye lands on the half of the name people will actually repeat.
  */
 export function Logo({ size = 22, muted = false }: { size?: number; muted?: boolean }) {
   return (
@@ -45,7 +48,7 @@ export function Logo({ size = 22, muted = false }: { size?: number; muted?: bool
         <LogoMark size={size} />
       </span>
       <span className="logo__word">
-        out<span className="logo__word2">loud</span>
+        <span className="logo__get">Get</span> Out Loud
       </span>
     </span>
   );

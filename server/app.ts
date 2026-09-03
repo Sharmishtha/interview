@@ -28,8 +28,13 @@ export interface Env {
    */
   SECOND_OPINION?: string;
   /**
-   * A sponsor for the rail slot, as JSON: {"title","body","url","linkText"}.
-   * Unset means no slot is rendered at all - not an empty frame, nothing.
+   * Whether the sponsor slot exists on this deployment at all. "off" anywhere
+   * but the exact string "on", so it fails closed like SECOND_OPINION.
+   */
+  SPONSOR_SLOT?: string;
+  /**
+   * The sponsor itself, as JSON: {"title","body","url","linkText"}. Ignored
+   * entirely unless SPONSOR_SLOT is on.
    */
   SPONSOR?: string;
   /** When set, the whole app sits behind a password. See server/gate.ts. */
@@ -44,7 +49,8 @@ type Ctx = Context<{ Bindings: Env }>;
  * Secrets arrive differently on each platform: bound to the request context on
  * Cloudflare Workers, and through the environment on Node.
  */
-type EnvName = "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY" | "SECOND_OPINION" | "SPONSOR";
+type EnvName =
+  "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY" | "SECOND_OPINION" | "SPONSOR_SLOT" | "SPONSOR";
 
 function secret(c: Ctx, name: EnvName): string {
   const bound = c.env?.[name];
@@ -84,6 +90,21 @@ export interface Sponsor {
   body: string;
   url?: string;
   linkText?: string;
+}
+
+/**
+ * The sponsor, if this deployment has the slot switched on and something valid
+ * to put in it.
+ *
+ * Two conditions on purpose. The flag is the product decision - does this
+ * deployment carry sponsorship at all - and it is reviewable in a diff because
+ * it lives in wrangler.toml. The content is a secret that can change without a
+ * deploy. Either missing means the slot does not render, and there is no state
+ * in which an empty advertisement frame appears.
+ */
+function sponsorFor(c: Ctx): Sponsor | null {
+  if (secret(c, "SPONSOR_SLOT") !== "on") return null;
+  return sponsorFrom(secret(c, "SPONSOR"));
 }
 
 /**
@@ -146,7 +167,7 @@ app.get("/api/interview", (c) => {
       })),
       dimensions,
     },
-    sponsor: sponsorFrom(secret(c, "SPONSOR")),
+    sponsor: sponsorFor(c),
   });
 });
 
@@ -364,7 +385,7 @@ app.post("/api/custom-question", async (c) => {
         })),
         dimensions,
       },
-      sponsor: sponsorFrom(secret(c, "SPONSOR")),
+      sponsor: sponsorFor(c),
     });
   } catch (error) {
     if (error instanceof CustomQuestionError) {
@@ -381,6 +402,6 @@ app.get("/api/health", (c) =>
     /** Whether the second-opinion button is offered. The UI hides it otherwise. */
     secondOpinion: secondOpinionOffered(c),
     /** Null on every deployment until SPONSOR is set. */
-    sponsor: sponsorFrom(secret(c, "SPONSOR")),
+    sponsor: sponsorFor(c),
   }),
 );

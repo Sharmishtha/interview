@@ -73,9 +73,16 @@ stacking — content that only earns a place in a margin has not earned a place 
 phone. Beware class-name collisions with the report: `.track` is the score bar, the rail's progress
 list is `.steps`.
 
-**The sponsor slot renders nothing unless SPONSOR is set.** Text only, capped lengths, http(s) URLs
-only, validated in `sponsorFrom`. Never ship an empty advertisement frame, and never widen the slot
-to take an image — the shape is the constraint.
+**The sponsor slot needs two switches, and is off on both environments.** `SPONSOR_SLOT` is a var in
+`wrangler.toml` (the product decision, reviewable in a diff) and `SPONSOR` is a secret holding the
+copy (changeable without one). Either missing renders nothing. Text only, capped lengths, http(s)
+URLs only, validated in `sponsorFrom`. Never ship an empty advertisement frame, and never widen the
+slot to take an image — the shape is the constraint.
+
+**Nothing coaches you mid-answer.** The right rail used to show the guide's positive signals during
+the interview. It does not any more: the scorecard already carries them in a drawer, which is the
+right place. The rail during an interview is deliberately empty, and the empty rail still renders —
+the grid is what centres the column, so dropping it would shunt the page sideways between screens.
 
 **The paid panel is gated on the server, not in the UI.** `SECOND_OPINION` is a var in
 `wrangler.toml` — `"on"` for staging, `"off"` for production — and anything but the exact string
@@ -149,7 +156,7 @@ Each of these cost real debugging time. They are not theoretical.
 
 ```bash
 npm run dev      # API :3001 + UI :5173
-npm test         # 162 tests
+npm test         # 165 tests
 npm run eval     # scorer against the labelled corpus
 npm run lint
 npm run build

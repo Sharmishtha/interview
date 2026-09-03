@@ -38,6 +38,9 @@ name = "interview-staging"
 # the exact string "on" leaves it off, so a typo fails closed.
 [env.staging.vars]
 SECOND_OPINION = "on"
+# The sponsor slot is off everywhere for now. Turning it on also needs a
+# SPONSOR secret with the copy; the flag alone renders nothing.
+SPONSOR_SLOT = "off"
 
 [env.staging.assets]
 directory = "./web/dist"
@@ -57,6 +60,7 @@ name = "interview-production"
 # panel in front of anyone. Flip to "on" and redeploy when you want to sell it.
 [env.production.vars]
 SECOND_OPINION = "off"
+SPONSOR_SLOT = "off"
 
 [env.production.assets]
 directory = "./web/dist"

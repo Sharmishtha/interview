@@ -1531,9 +1531,10 @@ body {
   color: var(--text);
 }
 
-/* "loud" carries no colour of its own - the weight break is enough separation
-   and keeps the wordmark legible at favicon-adjacent sizes. */
-.logo__word2 {
+/* "Get" recedes so the eye lands on the half of the name people repeat. No
+   second colour: the weight break is enough separation and keeps the wordmark
+   legible at favicon-adjacent sizes. */
+.logo__get {
   font-weight: 400;
   color: var(--muted);
 }
@@ -1543,7 +1544,7 @@ body {
 }
 
 .logo--muted .logo__word,
-.logo--muted .logo__word2 {
+.logo--muted .logo__get {
   color: var(--faint);
 }
 
@@ -1764,25 +1765,6 @@ body {
   font-style: normal;
   font-size: 12px;
   color: var(--faint);
-}
-
-/* --- rail: what they are listening for ----------------------------------- */
-
-.listening {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.listening li {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
-  padding-left: 12px;
-  border-left: 2px solid var(--accent-soft);
 }
 
 /* --- rail: contents and trend -------------------------------------------- */

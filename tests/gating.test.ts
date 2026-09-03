@@ -187,12 +187,36 @@ describe("the sponsor slot", () => {
   const health = async (env: Record<string, string>) =>
     (await app.fetch(new Request("http://localhost/api/health"), env)).json();
 
+  const ON = { SPONSOR_SLOT: "on" };
+
+  const COPY = JSON.stringify({
+    title: "Rehearsal Room Weekly",
+    body: "One question, broken down, every Thursday.",
+  });
+
   it("is absent by default, so no empty advertisement frame is ever shown", async () => {
     expect((await health({})).sponsor).toBeNull();
   });
 
+  it("stays off when the flag is off, however good the copy is", async () => {
+    expect((await health({ SPONSOR: COPY })).sponsor).toBeNull();
+    expect((await health({ SPONSOR: COPY, SPONSOR_SLOT: "off" })).sponsor).toBeNull();
+  });
+
+  it("fails closed on a flag value that is not exactly on", async () => {
+    for (const value of ["ON", "true", "yes", "1", " on", ""]) {
+      const body = await health({ SPONSOR: COPY, SPONSOR_SLOT: value });
+      expect(body.sponsor, `SPONSOR_SLOT=${JSON.stringify(value)}`).toBeNull();
+    }
+  });
+
+  it("renders nothing when the flag is on but there is no copy", async () => {
+    expect((await health(ON)).sponsor).toBeNull();
+  });
+
   it("carries a well-formed sponsor through", async () => {
     const body = await health({
+      ...ON,
       SPONSOR: JSON.stringify({
         title: "Rehearsal Room Weekly",
         body: "One question, broken down, every Thursday.",
@@ -210,6 +234,7 @@ describe("the sponsor slot", () => {
 
   it("refuses a javascript: href, which is how a text slot becomes an exploit", async () => {
     const body = await health({
+      ...ON,
       SPONSOR: JSON.stringify({ title: "T", body: "B", url: "javascript:alert(1)" }),
     });
 
@@ -218,21 +243,22 @@ describe("the sponsor slot", () => {
 
   it("refuses data: and other schemes for the same reason", async () => {
     for (const url of ["data:text/html,<script>", "file:///etc/passwd", "not-a-url"]) {
-      const body = await health({ SPONSOR: JSON.stringify({ title: "T", body: "B", url }) });
+      const body = await health({ ...ON, SPONSOR: JSON.stringify({ title: "T", body: "B", url }) });
       expect(body.sponsor, url).toBeNull();
     }
   });
 
   it("shows nothing rather than something broken when the JSON is malformed", async () => {
-    expect((await health({ SPONSOR: "{not json" })).sponsor).toBeNull();
-    expect((await health({ SPONSOR: "   " })).sponsor).toBeNull();
+    expect((await health({ ...ON, SPONSOR: "{not json" })).sponsor).toBeNull();
+    expect((await health({ ...ON, SPONSOR: "   " })).sponsor).toBeNull();
     expect(
-      (await health({ SPONSOR: JSON.stringify({ title: "only a title" }) })).sponsor,
+      (await health({ ...ON, SPONSOR: JSON.stringify({ title: "only a title" }) })).sponsor,
     ).toBeNull();
   });
 
   it("caps the copy, so the slot cannot grow into a billboard", async () => {
     const body = await health({
+      ...ON,
       SPONSOR: JSON.stringify({ title: "T".repeat(500), body: "B".repeat(900) }),
     });
 
@@ -241,7 +267,10 @@ describe("the sponsor slot", () => {
   });
 
   it("is fine without a link at all", async () => {
-    const body = await health({ SPONSOR: JSON.stringify({ title: "T", body: "Body text here." }) });
+    const body = await health({
+      ...ON,
+      SPONSOR: JSON.stringify({ title: "T", body: "Body text here." }),
+    });
     expect(body.sponsor).toMatchObject({ title: "T" });
     expect(body.sponsor.url).toBeUndefined();
   });

@@ -6,7 +6,6 @@ import {
   RailBrand,
   RailContents,
   RailHow,
-  RailListening,
   RailProgress,
   RailTrend,
   Sponsor,
@@ -741,8 +740,6 @@ function Room({
   const busy = stage === "transcribing";
   const probing = stage === "probing";
 
-  const competency = interview.rubric.competencies.find((c) => c.id === question.competency);
-
   return (
     <Page
       left={
@@ -755,7 +752,6 @@ function Room({
           />
         </>
       }
-      right={<RailListening signals={competency?.positiveSignals ?? []} />}
     >
       <main className="shell">
         <header className="topbar">

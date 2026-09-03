@@ -16,6 +16,11 @@ import * as storage from "./storage";
  *
  * Both rails vanish below 1120px rather than stacking. Content that only earns
  * its place in the margin has not earned a place above the fold on a phone.
+ *
+ * A rail with nothing in it still renders. That is deliberate: the grid is what
+ * centres the column, and dropping an empty rail would shunt the whole page
+ * sideways between screens. Empty margin is the correct state for a screen with
+ * nothing worth saying in it - during the interview, that is most of them.
  */
 export function Page({
   left,
@@ -90,27 +95,6 @@ export function RailProgress({
           </li>
         ))}
       </ol>
-    </RailBlock>
-  );
-}
-
-/**
- * What the interviewer is listening for on this question, in the guide's own
- * words.
- *
- * Showing this during the answer is a deliberate choice, and it would be the
- * wrong one in a real interview. This is a rehearsal room: the whole point is to
- * learn what these people are weighing, so that in the room you already know.
- */
-export function RailListening({ signals }: { signals: string[] }) {
-  if (signals.length === 0) return null;
-  return (
-    <RailBlock title="They are listening for">
-      <ul className="listening">
-        {signals.slice(0, 4).map((signal) => (
-          <li key={signal}>{signal}</li>
-        ))}
-      </ul>
     </RailBlock>
   );
 }
