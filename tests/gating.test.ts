@@ -182,3 +182,67 @@ describe("the free scorecard", () => {
     expect(parse).not.toHaveBeenCalled();
   });
 });
+
+describe("the sponsor slot", () => {
+  const health = async (env: Record<string, string>) =>
+    (await app.fetch(new Request("http://localhost/api/health"), env)).json();
+
+  it("is absent by default, so no empty advertisement frame is ever shown", async () => {
+    expect((await health({})).sponsor).toBeNull();
+  });
+
+  it("carries a well-formed sponsor through", async () => {
+    const body = await health({
+      SPONSOR: JSON.stringify({
+        title: "Rehearsal Room Weekly",
+        body: "One question, broken down, every Thursday.",
+        url: "https://example.com/x",
+        linkText: "See a sample",
+      }),
+    });
+
+    expect(body.sponsor).toMatchObject({
+      title: "Rehearsal Room Weekly",
+      url: "https://example.com/x",
+      linkText: "See a sample",
+    });
+  });
+
+  it("refuses a javascript: href, which is how a text slot becomes an exploit", async () => {
+    const body = await health({
+      SPONSOR: JSON.stringify({ title: "T", body: "B", url: "javascript:alert(1)" }),
+    });
+
+    expect(body.sponsor).toBeNull();
+  });
+
+  it("refuses data: and other schemes for the same reason", async () => {
+    for (const url of ["data:text/html,<script>", "file:///etc/passwd", "not-a-url"]) {
+      const body = await health({ SPONSOR: JSON.stringify({ title: "T", body: "B", url }) });
+      expect(body.sponsor, url).toBeNull();
+    }
+  });
+
+  it("shows nothing rather than something broken when the JSON is malformed", async () => {
+    expect((await health({ SPONSOR: "{not json" })).sponsor).toBeNull();
+    expect((await health({ SPONSOR: "   " })).sponsor).toBeNull();
+    expect(
+      (await health({ SPONSOR: JSON.stringify({ title: "only a title" }) })).sponsor,
+    ).toBeNull();
+  });
+
+  it("caps the copy, so the slot cannot grow into a billboard", async () => {
+    const body = await health({
+      SPONSOR: JSON.stringify({ title: "T".repeat(500), body: "B".repeat(900) }),
+    });
+
+    expect(body.sponsor.title).toHaveLength(60);
+    expect(body.sponsor.body).toHaveLength(160);
+  });
+
+  it("is fine without a link at all", async () => {
+    const body = await health({ SPONSOR: JSON.stringify({ title: "T", body: "Body text here." }) });
+    expect(body.sponsor).toMatchObject({ title: "T" });
+    expect(body.sponsor.url).toBeUndefined();
+  });
+});

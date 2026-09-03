@@ -1,4 +1,4 @@
-import type { AnswerRecord, Interview, Question, Scorecard, SecondOpinion } from "./types";
+import type { AnswerRecord, Interview, Question, Scorecard, SecondOpinion, Sponsor } from "./types";
 
 async function failure(response: Response): Promise<never> {
   let detail = response.statusText;
@@ -97,15 +97,30 @@ export async function secondOpinion(
   return (await response.json()) as SecondOpinion;
 }
 
-/** Whether this deployment offers the model evaluator behind its own button. */
-export async function capabilities(): Promise<{ secondOpinion: boolean }> {
+export interface Config {
+  /** Whether this deployment offers the model evaluator behind its own button. */
+  secondOpinion: boolean;
+  /** The rail's sponsor, if one is configured. Null on every deployment by default. */
+  sponsor: Sponsor | null;
+}
+
+/**
+ * One request for everything the UI needs to know about this deployment.
+ *
+ * Both fields default to "off" on any failure. Nothing here is load-bearing:
+ * a missed config request costs a button and a box, never the interview.
+ */
+export async function config(): Promise<Config> {
+  const off: Config = { secondOpinion: false, sponsor: null };
   try {
     const response = await fetch("/api/health");
-    if (!response.ok) return { secondOpinion: false };
-    const body = (await response.json()) as { secondOpinion?: boolean };
-    return { secondOpinion: Boolean(body.secondOpinion) };
+    if (!response.ok) return off;
+    const body = (await response.json()) as Partial<Config>;
+    return {
+      secondOpinion: Boolean(body.secondOpinion),
+      sponsor: body.sponsor ?? null,
+    };
   } catch {
-    // A button that cannot work is worse than no button.
-    return { secondOpinion: false };
+    return off;
   }
 }

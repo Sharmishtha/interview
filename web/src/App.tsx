@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "./api";
 import { PRINCIPLE_GROUPS } from "./principles";
+import {
+  Page,
+  RailBrand,
+  RailContents,
+  RailHow,
+  RailListening,
+  RailProgress,
+  RailTrend,
+  Sponsor,
+  useConfig,
+} from "./Rails";
 import * as storage from "./storage";
 import { useRecorder } from "./useRecorder";
 import type {
@@ -164,92 +175,110 @@ function Setup({
 }) {
   const [name, setName] = useState("");
   const [past, setPast] = useState<storage.StoredAttempt[]>([]);
+  const { sponsor } = useConfig();
 
   useEffect(() => setPast(storage.history()), []);
 
   return (
-    <main className="shell shell--center">
-      <div className="setup">
-        <p className="eyebrow">Executive Leadership Principles</p>
-        <h1 className="display">
-          VP+ Interview
-          <span className="display__sub">Three questions. One per pillar.</span>
-        </h1>
-        <p className="lede">
-          A CTO and a CEO each ask you a top-line question out loud, then probe. You answer out
-          loud. Afterwards you can reveal a scorecard that shows what you scored, and exactly what
-          would have taken each answer to an 8.
-        </p>
-
-        <div className="pillars">
-          {[
-            ["Plan with Purpose", "Vision, decisions, energy"],
-            ["Pursue Excellence", "Results, courage, resilience"],
-            ["Prioritize People", "Trust, influence, growing leaders"],
-          ].map(([name, sub]) => (
-            <div className="pillar-card" key={name}>
-              <strong>{name}</strong>
-              <span>{sub}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="panel-preview">
-          <div className="panel-preview__seat">
-            <span className="avatar avatar--cto">RM</span>
-            <div>
-              <strong>Ravi Menon</strong>
-              <span>Chief Technology Officer</span>
-            </div>
-          </div>
-          <div className="panel-preview__seat">
-            <span className="avatar avatar--ceo">CW</span>
-            <div>
-              <strong>Claire Whitfield</strong>
-              <span>Chief Executive Officer</span>
-            </div>
-          </div>
-        </div>
-
-        <form
-          className="setup__form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onStart(name.trim() || "Practice run");
-          }}
-        >
-          <input
-            className="input"
-            placeholder="Your name (optional)"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
+    <Page
+      center
+      left={<RailBrand tagline="Rehearse the interview out loud, before it happens." />}
+      right={
+        <>
+          <RailHow
+            steps={[
+              ["Three questions", "One per pillar, asked out loud by a CTO and a CEO."],
+              ["You answer out loud", "Or type, if you would rather not be heard."],
+              ["Then the scorecard", "Eight dimensions, and what would move each one."],
+            ]}
           />
-          <button className="button button--primary button--lg" type="submit">
-            Begin interview
-          </button>
-          <button
-            className="button button--lg"
-            type="button"
-            onClick={() => onCompose(name.trim() || "Practice run")}
-          >
-            Practise one question
-          </button>
-        </form>
+          <Sponsor sponsor={sponsor} />
+        </>
+      }
+    >
+      <main className="shell shell--center">
+        <div className="setup">
+          <p className="eyebrow">Executive Leadership Principles</p>
+          <h1 className="display">
+            VP+ Interview
+            <span className="display__sub">Three questions. One per pillar.</span>
+          </h1>
+          <p className="lede">
+            A CTO and a CEO each ask you a top-line question out loud, then probe. You answer out
+            loud. Afterwards you can reveal a scorecard that shows what you scored, and exactly what
+            would have taken each answer to an 8.
+          </p>
 
-        {error && <p className="alert">{error}</p>}
+          <div className="pillars">
+            {[
+              ["Plan with Purpose", "Vision, decisions, energy"],
+              ["Pursue Excellence", "Results, courage, resilience"],
+              ["Prioritize People", "Trust, influence, growing leaders"],
+            ].map(([name, sub]) => (
+              <div className="pillar-card" key={name}>
+                <strong>{name}</strong>
+                <span>{sub}</span>
+              </div>
+            ))}
+          </div>
 
-        {past.length > 0 && (
-          <History
-            entries={past}
-            onOpen={onOpenPast}
-            onClear={() => {
-              storage.clearHistory();
-              setPast([]);
+          <div className="panel-preview">
+            <div className="panel-preview__seat">
+              <span className="avatar avatar--cto">RM</span>
+              <div>
+                <strong>Ravi Menon</strong>
+                <span>Chief Technology Officer</span>
+              </div>
+            </div>
+            <div className="panel-preview__seat">
+              <span className="avatar avatar--ceo">CW</span>
+              <div>
+                <strong>Claire Whitfield</strong>
+                <span>Chief Executive Officer</span>
+              </div>
+            </div>
+          </div>
+
+          <form
+            className="setup__form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onStart(name.trim() || "Practice run");
             }}
-          />
-        )}
-      </div>
-    </main>
+          >
+            <input
+              className="input"
+              placeholder="Your name (optional)"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <button className="button button--primary button--lg" type="submit">
+              Begin interview
+            </button>
+            <button
+              className="button button--lg"
+              type="button"
+              onClick={() => onCompose(name.trim() || "Practice run")}
+            >
+              Practise one question
+            </button>
+          </form>
+
+          {error && <p className="alert">{error}</p>}
+
+          {past.length > 0 && (
+            <History
+              entries={past}
+              onOpen={onOpenPast}
+              onClear={() => {
+                storage.clearHistory();
+                setPast([]);
+              }}
+            />
+          )}
+        </div>
+      </main>
+    </Page>
   );
 }
 
@@ -712,173 +741,189 @@ function Room({
   const busy = stage === "transcribing";
   const probing = stage === "probing";
 
+  const competency = interview.rubric.competencies.find((c) => c.id === question.competency);
+
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="progress">
-          {interview.questions.map((q, i) => (
-            <span
-              key={q.id}
-              className={`pip ${i < index ? "pip--done" : ""} ${i === index ? "pip--active" : ""}`}
-            />
-          ))}
-        </div>
-        <span className="topbar__count">
-          {index + 1} of {interview.questions.length}
-        </span>
-      </header>
-
-      <section className="room">
-        <div className="asker">
-          <span className={`avatar ${panelist?.id === "ceo" ? "avatar--ceo" : "avatar--cto"}`}>
-            {initials(panelist?.name)}
-          </span>
-          <div>
-            <strong>{panelist?.name}</strong>
-            <span>{panelist?.role}</span>
-          </div>
-          <span className="tag">{pillar?.name ?? question.pillar}</span>
-        </div>
-
-        <p className="question">{question.text}</p>
-
-        {probing && probe && (
-          <div className="probe">
-            <span className="probe__label">Follow-up</span>
-            <p>{probe.question}</p>
-          </div>
-        )}
-
-        {transcript && stage !== "asking" && (
-          <div className="transcript">
-            <span className="transcript__label">Your answer</span>
-            <p>{transcript}</p>
-            {answerAudio && <Playback src={answerAudio} />}
-          </div>
-        )}
-
-        {probeTranscript && (
-          <div className="transcript">
-            <span className="transcript__label">Your follow-up</span>
-            <p>{probeTranscript}</p>
-            {probeAudio && <Playback src={probeAudio} />}
-          </div>
-        )}
-
-        <div className="controls">
-          {typing ? (
-            <div className="typing">
-              <textarea
-                className="textarea"
-                rows={7}
-                autoFocus
-                placeholder="Type your answer..."
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+    <Page
+      left={
+        <>
+          <RailBrand />
+          <RailProgress
+            questions={interview.questions}
+            index={index}
+            pillarName={(id) => interview.rubric.pillars.find((p) => p.id === id)?.name ?? id}
+          />
+        </>
+      }
+      right={<RailListening signals={competency?.positiveSignals ?? []} />}
+    >
+      <main className="shell">
+        <header className="topbar">
+          <div className="progress">
+            {interview.questions.map((q, i) => (
+              <span
+                key={q.id}
+                className={`pip ${i < index ? "pip--done" : ""} ${i === index ? "pip--active" : ""}`}
               />
-              <div className="controls__row">
-                <button
-                  className="button button--primary"
-                  disabled={!draft.trim()}
-                  onClick={() => {
-                    if (probing) setProbeTranscript(draft.trim());
-                    else setTranscript(draft.trim());
-                    setDraft("");
-                    setTyping(false);
-                    setStage("review");
-                  }}
-                >
-                  Submit answer
-                </button>
-                <button className="button" onClick={() => setTyping(false)}>
-                  Cancel
-                </button>
-              </div>
+            ))}
+          </div>
+          <span className="topbar__count">
+            {index + 1} of {interview.questions.length}
+          </span>
+        </header>
+
+        <section className="room">
+          <div className="asker">
+            <span className={`avatar ${panelist?.id === "ceo" ? "avatar--ceo" : "avatar--cto"}`}>
+              {initials(panelist?.name)}
+            </span>
+            <div>
+              <strong>{panelist?.name}</strong>
+              <span>{panelist?.role}</span>
             </div>
-          ) : recorder.recording ? (
-            <div className="recording">
-              <Meter level={recorder.level} />
-              <button
-                className="button button--stop"
-                onClick={() => void handleStop(probing ? "probe" : "answer")}
-              >
-                Stop · {formatTime(recorder.seconds)}
-              </button>
-            </div>
-          ) : busy ? (
-            <p className="status">Transcribing…</p>
-          ) : stage === "review" ? (
-            <div className="controls__row">
-              {probe && !probeTranscript && (
-                <button className="button button--primary" onClick={askProbe}>
-                  Take the follow-up
-                </button>
-              )}
-              <button
-                className={`button ${probeTranscript || !probe ? "button--primary" : ""}`}
-                onClick={commit}
-              >
-                {isLast ? "Finish interview" : "Next question"}
-              </button>
-              <button
-                className="button button--ghost"
-                onClick={() => {
-                  if (probeTranscript) {
-                    setProbeTranscript("");
-                    setProbeAudio((previous) => {
-                      if (previous) URL.revokeObjectURL(previous);
-                      return null;
-                    });
-                  } else {
-                    setTranscript("");
-                    setAnswerAudio((previous) => {
-                      if (previous) URL.revokeObjectURL(previous);
-                      return null;
-                    });
-                  }
-                  setStage(probeTranscript ? "probing" : "answering");
-                }}
-              >
-                Redo
-              </button>
-            </div>
-          ) : (
-            <div className="controls__row">
-              <button
-                className="button button--record"
-                disabled={!recorder.supported}
-                onClick={() => {
-                  setNotice(null);
-                  void recorder.start();
-                }}
-              >
-                <span className="dot" /> {probing ? "Answer the follow-up" : "Record answer"}
-              </button>
-              <button className="button button--ghost" onClick={() => setTyping(true)}>
-                Type instead
-              </button>
-              <button
-                className="button button--ghost"
-                onClick={() =>
-                  void say(probing && probe ? probe.question : question.text, panelist)
-                }
-              >
-                Replay
-              </button>
+            <span className="tag">{pillar?.name ?? question.pillar}</span>
+          </div>
+
+          <p className="question">{question.text}</p>
+
+          {probing && probe && (
+            <div className="probe">
+              <span className="probe__label">Follow-up</span>
+              <p>{probe.question}</p>
             </div>
           )}
-        </div>
 
-        {/* A problem that stops you progressing outranks a note about voice
+          {transcript && stage !== "asking" && (
+            <div className="transcript">
+              <span className="transcript__label">Your answer</span>
+              <p>{transcript}</p>
+              {answerAudio && <Playback src={answerAudio} />}
+            </div>
+          )}
+
+          {probeTranscript && (
+            <div className="transcript">
+              <span className="transcript__label">Your follow-up</span>
+              <p>{probeTranscript}</p>
+              {probeAudio && <Playback src={probeAudio} />}
+            </div>
+          )}
+
+          <div className="controls">
+            {typing ? (
+              <div className="typing">
+                <textarea
+                  className="textarea"
+                  rows={7}
+                  autoFocus
+                  placeholder="Type your answer..."
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+                <div className="controls__row">
+                  <button
+                    className="button button--primary"
+                    disabled={!draft.trim()}
+                    onClick={() => {
+                      if (probing) setProbeTranscript(draft.trim());
+                      else setTranscript(draft.trim());
+                      setDraft("");
+                      setTyping(false);
+                      setStage("review");
+                    }}
+                  >
+                    Submit answer
+                  </button>
+                  <button className="button" onClick={() => setTyping(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : recorder.recording ? (
+              <div className="recording">
+                <Meter level={recorder.level} />
+                <button
+                  className="button button--stop"
+                  onClick={() => void handleStop(probing ? "probe" : "answer")}
+                >
+                  Stop · {formatTime(recorder.seconds)}
+                </button>
+              </div>
+            ) : busy ? (
+              <p className="status">Transcribing…</p>
+            ) : stage === "review" ? (
+              <div className="controls__row">
+                {probe && !probeTranscript && (
+                  <button className="button button--primary" onClick={askProbe}>
+                    Take the follow-up
+                  </button>
+                )}
+                <button
+                  className={`button ${probeTranscript || !probe ? "button--primary" : ""}`}
+                  onClick={commit}
+                >
+                  {isLast ? "Finish interview" : "Next question"}
+                </button>
+                <button
+                  className="button button--ghost"
+                  onClick={() => {
+                    if (probeTranscript) {
+                      setProbeTranscript("");
+                      setProbeAudio((previous) => {
+                        if (previous) URL.revokeObjectURL(previous);
+                        return null;
+                      });
+                    } else {
+                      setTranscript("");
+                      setAnswerAudio((previous) => {
+                        if (previous) URL.revokeObjectURL(previous);
+                        return null;
+                      });
+                    }
+                    setStage(probeTranscript ? "probing" : "answering");
+                  }}
+                >
+                  Redo
+                </button>
+              </div>
+            ) : (
+              <div className="controls__row">
+                <button
+                  className="button button--record"
+                  disabled={!recorder.supported}
+                  onClick={() => {
+                    setNotice(null);
+                    void recorder.start();
+                  }}
+                >
+                  <span className="dot" /> {probing ? "Answer the follow-up" : "Record answer"}
+                </button>
+                <button className="button button--ghost" onClick={() => setTyping(true)}>
+                  Type instead
+                </button>
+                <button
+                  className="button button--ghost"
+                  onClick={() =>
+                    void say(probing && probe ? probe.question : question.text, panelist)
+                  }
+                >
+                  Replay
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* A problem that stops you progressing outranks a note about voice
             playback, which is only a nicety. Both can be true at once. */}
-        {(notice || recorder.error || error) && (
-          <p className="alert" role="alert">
-            {notice ?? recorder.error ?? error}
-          </p>
-        )}
-        {voiceNote && <p className="alert alert--soft">{voiceNote}</p>}
-      </section>
-    </main>
+          {(notice || recorder.error || error) && (
+            <p className="alert" role="alert">
+              {notice ?? recorder.error ?? error}
+            </p>
+          )}
+          {voiceNote && <p className="alert alert--soft">{voiceNote}</p>}
+        </section>
+      </main>
+    </Page>
   );
 }
 
@@ -992,6 +1037,7 @@ function Report({
    * than hidden: a score someone is being coached against should say how
    * confident it is entitled to be.
    */
+  const { sponsor } = useConfig();
   const answerText = useMemo(
     () => new Map(answers.map((a) => [a.questionId, a.answer])),
     [answers],
@@ -1006,223 +1052,250 @@ function Report({
   );
 
   return (
-    <main className="shell">
-      <section className="report">
-        <header className="report__head">
-          <div className="coach">
-            <p className="eyebrow">Nicely done — here is where you landed</p>
-            <h1 className="coach__headline">{scorecard.narrative.headline}</h1>
-          </div>
-          <div className="overall">
-            <span className={`overall__value score--${tier(scorecard.overall)}`}>
-              {scorecard.overall.toFixed(1)}
-            </span>
-            <span className="overall__scale">/ 10 overall</span>
-          </div>
-        </header>
-
-        {/* One human line per principle, before any bar chart asks to be read. */}
-        <div className="reads">
-          {scorecard.competencyScores.map((score) => (
-            <div className="read" key={score.competency}>
-              <span className="read__name">
-                {competency.get(score.competency)?.name ?? score.competency}
-              </span>
-              <span className={`read__score score--${tier(score.value)}`}>
-                {score.value.toFixed(1)}
-              </span>
-              <span className="read__text">
-                {scorecard.narrative.reads.find((r) => r.competency === score.competency)?.text ??
-                  score.band}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {scorecard.narrative.oneThing && (
-          <div className="onething">
-            <h2 className="onething__title">One thing to change next time</h2>
-            <p className="onething__prose">{scorecard.narrative.oneThing.prose}</p>
-            <div className="onething__worth">
-              <span className="worth">worth +{scorecard.narrative.oneThing.gain.toFixed(2)}</span>
-              <span className="worth__note">on that answer, next attempt</span>
-            </div>
-          </div>
-        )}
-
-        {readOnly ? (
-          <p className="provenance">
-            Re-reading your attempt from {shortDate(readOnly.at)}. Nothing here is re-scored, so the
-            numbers are exactly what you saw on the day.
-          </p>
-        ) : (
-          <SecondOpinionPanel
-            candidateName={candidateName}
-            answers={answers}
-            customQuestions={customQuestions}
-            heuristicOverall={scorecard.overall}
-            sessionId={scorecard.sessionId}
+    <Page
+      left={
+        <>
+          <RailBrand />
+          <RailContents
+            items={[
+              { id: "read", label: "The read" },
+              { id: "reach", label: "How to reach 8+" },
+              { id: "rubric", label: "Your rubric" },
+            ]}
           />
-        )}
+        </>
+      }
+      right={
+        <>
+          <RailTrend scorecard={scorecard} dimensionName={(id) => dimensionName.get(id) ?? id} />
+          <Sponsor sponsor={sponsor} />
+        </>
+      }
+    >
+      <main className="shell">
+        <section className="report">
+          <header className="report__head">
+            <div className="coach">
+              <p className="eyebrow">Nicely done — here is where you landed</p>
+              <h1 className="coach__headline">{scorecard.narrative.headline}</h1>
+            </div>
+            <div className="overall">
+              <span className={`overall__value score--${tier(scorecard.overall)}`}>
+                {scorecard.overall.toFixed(1)}
+              </span>
+              <span className="overall__scale">/ 10 overall</span>
+            </div>
+          </header>
 
-        <h2 className="section">Strengths and gaps</h2>
-        <div className="callouts">
-          <div className="callout callout--good">
-            <span>Strengths</span>
-            <p>
-              {scorecard.strengths.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}
-            </p>
-          </div>
-          <div className="callout callout--warn">
-            <span>Work on</span>
-            <p>{scorecard.gaps.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}</p>
-          </div>
-        </div>
-
-        <details className="drawer drawer--section">
-          <summary>The rubric&apos;s own words, principle by principle</summary>
-          <div className="competencies">
+          {/* One human line per principle, before any bar chart asks to be read. */}
+          <div className="reads" id="read">
             {scorecard.competencyScores.map((score) => (
-              <div className="competency" key={score.competency}>
-                <p className="competency__pillar">{pillarName.get(score.pillar) ?? score.pillar}</p>
-                <div className="competency__head">
-                  <strong>{competency.get(score.competency)?.name ?? score.competency}</strong>
-                  <span className={`score score--${tier(score.value)}`}>
-                    {score.value.toFixed(1)}
-                  </span>
-                </div>
-                <div className="track">
-                  <span
-                    className={`fill fill--${tier(score.value)}`}
-                    style={{ width: `${score.value * 10}%` }}
-                  />
-                </div>
-                <p className="competency__band">{score.band}</p>
+              <div className="read" key={score.competency}>
+                <span className="read__name">
+                  {competency.get(score.competency)?.name ?? score.competency}
+                </span>
+                <span className={`read__score score--${tier(score.value)}`}>
+                  {score.value.toFixed(1)}
+                </span>
+                <span className="read__text">
+                  {scorecard.narrative.reads.find((r) => r.competency === score.competency)?.text ??
+                    score.band}
+                </span>
               </div>
             ))}
           </div>
-        </details>
 
-        <h2 className="section">How to reach 8+</h2>
-        <div className="answers">
-          {scorecard.guidance.map((guidance) => (
-            <article className="guide" key={guidance.questionId}>
-              <p className="guide__question">
-                {questionText.get(guidance.questionId) ?? guidance.questionId}
-              </p>
-
-              <div className="jump">
-                <span className={`score score--${tier(guidance.composite)}`}>
-                  {guidance.composite.toFixed(1)}
-                </span>
-                <span className="jump__arrow">→</span>
-                <span className={`score score--${tier(guidance.reachable)}`}>
-                  {guidance.reachable.toFixed(1)}
-                </span>
-                <span className="jump__label">
-                  with the {guidance.lifts.length} change{guidance.lifts.length === 1 ? "" : "s"}{" "}
-                  below
-                </span>
+          {scorecard.narrative.oneThing && (
+            <div className="onething">
+              <h2 className="onething__title">One thing to change next time</h2>
+              <p className="onething__prose">{scorecard.narrative.oneThing.prose}</p>
+              <div className="onething__worth">
+                <span className="worth">worth +{scorecard.narrative.oneThing.gain.toFixed(2)}</span>
+                <span className="worth__note">on that answer, next attempt</span>
               </div>
+            </div>
+          )}
 
-              {guidance.flags.length > 0 && (
-                <ul className="flags">
-                  {guidance.flags.map((flag) => (
-                    <li key={flag}>{flag}</li>
-                  ))}
-                </ul>
-              )}
+          {readOnly ? (
+            <p className="provenance">
+              Re-reading your attempt from {shortDate(readOnly.at)}. Nothing here is re-scored, so
+              the numbers are exactly what you saw on the day.
+            </p>
+          ) : (
+            <SecondOpinionPanel
+              candidateName={candidateName}
+              answers={answers}
+              customQuestions={customQuestions}
+              heuristicOverall={scorecard.overall}
+              sessionId={scorecard.sessionId}
+            />
+          )}
 
-              <ol className="lifts">
-                {guidance.lifts.map((lift) => (
-                  <li key={lift.dimension}>
-                    <div className="lift__head">
-                      <span className="gain">+{lift.compositeGain.toFixed(2)}</span>
-                      <span className="lift__dim">
-                        {dimensionName.get(lift.dimension) ?? lift.dimension}
-                        <em>
-                          {lift.from.toFixed(1)} → {lift.to}
-                        </em>
-                      </span>
-                    </div>
-                    <p>{lift.suggestion}</p>
-                  </li>
-                ))}
-              </ol>
+          <h2 className="section">Strengths and gaps</h2>
+          <div className="callouts">
+            <div className="callout callout--good">
+              <span>Strengths</span>
+              <p>
+                {scorecard.strengths.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}
+              </p>
+            </div>
+            <div className="callout callout--warn">
+              <span>Work on</span>
+              <p>{scorecard.gaps.map((id) => competency.get(id)?.name ?? id).join(" · ") || "—"}</p>
+            </div>
+          </div>
 
-              <details className="drawer">
-                <summary>The interviewer&apos;s follow-ups ({guidance.probes.length})</summary>
-                <ul className="probes">
-                  {guidance.probes.map((probe) => (
-                    <li
-                      key={probe.question}
-                      className={probe.likelyUncovered ? "probes--open" : ""}
-                    >
-                      {probe.question}
-                      {probe.likelyUncovered && <em> likely not covered</em>}
+          <details className="drawer drawer--section">
+            <summary>The rubric&apos;s own words, principle by principle</summary>
+            <div className="competencies">
+              {scorecard.competencyScores.map((score) => (
+                <div className="competency" key={score.competency}>
+                  <p className="competency__pillar">
+                    {pillarName.get(score.pillar) ?? score.pillar}
+                  </p>
+                  <div className="competency__head">
+                    <strong>{competency.get(score.competency)?.name ?? score.competency}</strong>
+                    <span className={`score score--${tier(score.value)}`}>
+                      {score.value.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="track">
+                    <span
+                      className={`fill fill--${tier(score.value)}`}
+                      style={{ width: `${score.value * 10}%` }}
+                    />
+                  </div>
+                  <p className="competency__band">{score.band}</p>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <h2 className="section" id="reach">
+            How to reach 8+
+          </h2>
+          <div className="answers">
+            {scorecard.guidance.map((guidance) => (
+              <article className="guide" key={guidance.questionId}>
+                <p className="guide__question">
+                  {questionText.get(guidance.questionId) ?? guidance.questionId}
+                </p>
+
+                <div className="jump">
+                  <span className={`score score--${tier(guidance.composite)}`}>
+                    {guidance.composite.toFixed(1)}
+                  </span>
+                  <span className="jump__arrow">→</span>
+                  <span className={`score score--${tier(guidance.reachable)}`}>
+                    {guidance.reachable.toFixed(1)}
+                  </span>
+                  <span className="jump__label">
+                    with the {guidance.lifts.length} change{guidance.lifts.length === 1 ? "" : "s"}{" "}
+                    below
+                  </span>
+                </div>
+
+                {guidance.flags.length > 0 && (
+                  <ul className="flags">
+                    {guidance.flags.map((flag) => (
+                      <li key={flag}>{flag}</li>
+                    ))}
+                  </ul>
+                )}
+
+                <ol className="lifts">
+                  {guidance.lifts.map((lift) => (
+                    <li key={lift.dimension}>
+                      <div className="lift__head">
+                        <span className="gain">+{lift.compositeGain.toFixed(2)}</span>
+                        <span className="lift__dim">
+                          {dimensionName.get(lift.dimension) ?? lift.dimension}
+                          <em>
+                            {lift.from.toFixed(1)} → {lift.to}
+                          </em>
+                        </span>
+                      </div>
+                      <p>{lift.suggestion}</p>
                     </li>
                   ))}
-                </ul>
-              </details>
+                </ol>
 
-              <details className="drawer">
-                <summary>What the interviewer is listening for</summary>
-                <ul className="signals">
-                  {guidance.listeningFor.map((signal) => (
-                    <li key={signal}>{signal}</li>
-                  ))}
-                </ul>
-              </details>
-            </article>
-          ))}
-        </div>
-
-        <h2 className="section">Your rubric, question by question</h2>
-        {approximated.size > 0 && (
-          <p className="estimate-note">
-            {estimatedNames} {approximated.size === 1 ? "is" : "are"} estimated here. They are
-            judgements about how the answer lands, and this evaluator matches surface features
-            rather than reading it — a named person, a vivid phrase, a turn of events. Everything
-            else below is measured from what the answer contains.
-          </p>
-        )}
-        <div className="answers">
-          {scorecard.guidance.map((guidance) => (
-            <article className="answer" key={guidance.questionId}>
-              <div className="answer__head">
-                <span className={`score score--${tier(guidance.composite)}`}>
-                  {guidance.composite.toFixed(1)}
-                </span>
-                <p>{questionText.get(guidance.questionId) ?? guidance.questionId}</p>
-              </div>
-
-              <div className="rubric">
-                {guidance.rubric.map((row) => (
-                  <RubricRowView
-                    key={row.dimension}
-                    row={row}
-                    name={dimensionName.get(row.dimension) ?? row.dimension}
-                  />
-                ))}
-              </div>
-
-              {answerText.get(guidance.questionId) && (
                 <details className="drawer">
-                  <summary>What you said</summary>
-                  <p className="said">{answerText.get(guidance.questionId)}</p>
+                  <summary>The interviewer&apos;s follow-ups ({guidance.probes.length})</summary>
+                  <ul className="probes">
+                    {guidance.probes.map((probe) => (
+                      <li
+                        key={probe.question}
+                        className={probe.likelyUncovered ? "probes--open" : ""}
+                      >
+                        {probe.question}
+                        {probe.likelyUncovered && <em> likely not covered</em>}
+                      </li>
+                    ))}
+                  </ul>
                 </details>
-              )}
-            </article>
-          ))}
-        </div>
 
-        <div className="controls__row">
-          <button className="button button--primary" onClick={onRestart}>
-            {readOnly ? "Back to practice" : "Run another interview"}
-          </button>
-        </div>
-      </section>
-    </main>
+                <details className="drawer">
+                  <summary>What the interviewer is listening for</summary>
+                  <ul className="signals">
+                    {guidance.listeningFor.map((signal) => (
+                      <li key={signal}>{signal}</li>
+                    ))}
+                  </ul>
+                </details>
+              </article>
+            ))}
+          </div>
+
+          <h2 className="section" id="rubric">
+            Your rubric, question by question
+          </h2>
+          {approximated.size > 0 && (
+            <p className="estimate-note">
+              {estimatedNames} {approximated.size === 1 ? "is" : "are"} estimated here. They are
+              judgements about how the answer lands, and this evaluator matches surface features
+              rather than reading it — a named person, a vivid phrase, a turn of events. Everything
+              else below is measured from what the answer contains.
+            </p>
+          )}
+          <div className="answers">
+            {scorecard.guidance.map((guidance) => (
+              <article className="answer" key={guidance.questionId}>
+                <div className="answer__head">
+                  <span className={`score score--${tier(guidance.composite)}`}>
+                    {guidance.composite.toFixed(1)}
+                  </span>
+                  <p>{questionText.get(guidance.questionId) ?? guidance.questionId}</p>
+                </div>
+
+                <div className="rubric">
+                  {guidance.rubric.map((row) => (
+                    <RubricRowView
+                      key={row.dimension}
+                      row={row}
+                      name={dimensionName.get(row.dimension) ?? row.dimension}
+                    />
+                  ))}
+                </div>
+
+                {answerText.get(guidance.questionId) && (
+                  <details className="drawer">
+                    <summary>What you said</summary>
+                    <p className="said">{answerText.get(guidance.questionId)}</p>
+                  </details>
+                )}
+              </article>
+            ))}
+          </div>
+
+          <div className="controls__row">
+            <button className="button button--primary" onClick={onRestart}>
+              {readOnly ? "Back to practice" : "Run another interview"}
+            </button>
+          </div>
+        </section>
+      </main>
+    </Page>
   );
 }
 
@@ -1307,20 +1380,10 @@ function SecondOpinionPanel({
   heuristicOverall: number;
   sessionId: string;
 }) {
-  const [available, setAvailable] = useState(false);
+  const { secondOpinion: available } = useConfig();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<SecondOpinion | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    void api.capabilities().then((caps) => {
-      if (live) setAvailable(caps.secondOpinion);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
 
   if (!available) return null;
 

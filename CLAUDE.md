@@ -66,6 +66,17 @@ and hostnames. A bare `wrangler deploy` publishes the top-level config, which is
 is why the `deploy` script was removed in favour of `deploy:staging` and `deploy:prod`. Do not
 add one back.
 
+**The rails carry orientation and context, never navigation or upsell.** `web/src/Rails.tsx`. The
+rule for what may live out there: it has to be worth reading _while_ you do the thing in the middle
+and must never compete with the one action on screen. Both rails vanish below 1120px rather than
+stacking — content that only earns a place in a margin has not earned a place above the fold on a
+phone. Beware class-name collisions with the report: `.track` is the score bar, the rail's progress
+list is `.steps`.
+
+**The sponsor slot renders nothing unless SPONSOR is set.** Text only, capped lengths, http(s) URLs
+only, validated in `sponsorFrom`. Never ship an empty advertisement frame, and never widen the slot
+to take an image — the shape is the constraint.
+
 **The paid panel is gated on the server, not in the UI.** `SECOND_OPINION` is a var in
 `wrangler.toml` — `"on"` for staging, `"off"` for production — and anything but the exact string
 `"on"` fails closed. With it off, `/api/score/llm` returns 403 for anything that is not a question
@@ -138,7 +149,7 @@ Each of these cost real debugging time. They are not theoretical.
 
 ```bash
 npm run dev      # API :3001 + UI :5173
-npm test         # 151 tests
+npm test         # 162 tests
 npm run eval     # scorer against the labelled corpus
 npm run lint
 npm run build

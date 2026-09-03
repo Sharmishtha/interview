@@ -386,6 +386,22 @@ The first deploy of each environment creates its custom domain and issues the ce
 takes a minute or two, and until it finishes the hostname may return a 5xx or a certificate
 warning — wait it out rather than redeploying.
 
+### The sponsor slot
+
+The right rail reserves a small text box at the bottom for a sponsor. It renders **nothing at all**
+unless `SPONSOR` is set — there is no empty "advertisement" frame shown to anyone.
+
+```bash
+npx wrangler secret put SPONSOR --env production
+# paste one line of JSON:
+# {"title":"Rehearsal Room Weekly","body":"One question, broken down, every Thursday.","url":"https://example.com","linkText":"See a sample"}
+```
+
+Text only: a title, a line of body, an optional link. No image, no animation — the slot is shaped
+so it cannot later be filled with a banner by accident. The server validates it, caps the title at
+60 characters and the body at 160, and refuses any URL that is not `http`/`https`, so a
+`javascript:` href cannot reach the page. Malformed JSON shows nothing rather than something broken.
+
 ### Turning the paid second opinion on and off
 
 Two independent levers, because they answer different questions:

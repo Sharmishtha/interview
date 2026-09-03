@@ -1618,3 +1618,290 @@ body {
   line-height: 1.4;
   color: var(--muted);
 }
+
+/* --- page and rails ------------------------------------------------------ */
+
+/*
+ * The centre column keeps its own max-width and stays exactly where it was;
+ * the rails are given the space either side of it and nothing more. That
+ * ordering matters: the reading measure of the main column is the design, and
+ * the rails are what stops the page looking unfinished around it.
+ */
+.page {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 0;
+  min-height: 100vh;
+}
+
+.page--center {
+  align-items: center;
+}
+
+.rail {
+  /* Hidden by default. The rails are a large-screen affordance, and content
+     that only earns its place in a margin has not earned a place on a phone. */
+  display: none;
+  width: 236px;
+  padding: 44px 24px;
+  align-self: stretch;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.rail--left {
+  justify-self: end;
+}
+
+.rail--right {
+  justify-self: start;
+}
+
+/* One rail at a time first: the left one orients you, so it earns its space
+   before the right one does. */
+@media (min-width: 1120px) {
+  .rail--left {
+    display: flex;
+  }
+}
+
+@media (min-width: 1400px) {
+  .rail--right {
+    display: flex;
+  }
+}
+
+.rail__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail__tagline {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+.rail__block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rail__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* --- rail: progress through the interview -------------------------------- */
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.steps__step {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+/* The line joining the steps, drawn from each dot to the next. */
+.steps__step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--line);
+}
+
+.steps__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.steps__step--done .steps__dot {
+  background: var(--high);
+}
+
+.steps__step--now .steps__dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.steps__label {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.steps__step--now .steps__label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.steps__label em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* --- rail: what they are listening for ----------------------------------- */
+
+.listening {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.listening li {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  padding-left: 12px;
+  border-left: 2px solid var(--accent-soft);
+}
+
+/* --- rail: contents and trend -------------------------------------------- */
+
+.toc,
+.trend,
+.how {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toc a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.toc a:hover {
+  color: var(--accent);
+}
+
+.trend li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.trend__name {
+  color: var(--muted);
+}
+
+.trend__move {
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.trend__move--up {
+  color: var(--high);
+}
+
+.trend__move--down {
+  color: var(--mid);
+}
+
+.how {
+  counter-reset: step;
+  gap: 14px;
+}
+
+.how li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.how strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.how span {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+
+/* --- rail: the sponsor slot ---------------------------------------------- */
+
+/*
+ * Pinned to the bottom of the rail, below everything the app itself has to
+ * say. Text only, no image, no animation, one border. The constraint is the
+ * point: a box this shape cannot later hold a banner.
+ */
+.sponsor {
+  margin-top: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 220px;
+}
+
+.sponsor__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.sponsor__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.sponsor__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.sponsor__link {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sponsor__link:hover {
+  text-decoration: underline;
+}

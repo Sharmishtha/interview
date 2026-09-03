@@ -27,6 +27,11 @@ export interface Env {
    * closed rather than quietly enabling a thing that costs money.
    */
   SECOND_OPINION?: string;
+  /**
+   * A sponsor for the rail slot, as JSON: {"title","body","url","linkText"}.
+   * Unset means no slot is rendered at all - not an empty frame, nothing.
+   */
+  SPONSOR?: string;
   /** When set, the whole app sits behind a password. See server/gate.ts. */
   APP_PASSWORD?: string;
   /** Cloudflare static assets binding. Absent under Node. */
@@ -39,7 +44,7 @@ type Ctx = Context<{ Bindings: Env }>;
  * Secrets arrive differently on each platform: bound to the request context on
  * Cloudflare Workers, and through the environment on Node.
  */
-type EnvName = "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY" | "SECOND_OPINION";
+type EnvName = "ELEVENLABS_API_KEY" | "ANTHROPIC_API_KEY" | "SECOND_OPINION" | "SPONSOR";
 
 function secret(c: Ctx, name: EnvName): string {
   const bound = c.env?.[name];
@@ -74,6 +79,50 @@ function message(error: unknown): string {
 /** The API. Mounted by both the Node server and the Cloudflare Worker. */
 export const app = new Hono<{ Bindings: Env }>();
 
+export interface Sponsor {
+  title: string;
+  body: string;
+  url?: string;
+  linkText?: string;
+}
+
+/**
+ * Parses the configured sponsor, or returns null.
+ *
+ * Everything is validated and length-capped here rather than trusted: this is
+ * the one string in the app that a third party's copy ends up inside, and the
+ * slot is meant to stay a small quiet box. A URL must be http(s) - a `javascript:`
+ * or `data:` href in a link the page renders is the obvious way this goes wrong.
+ */
+function sponsorFrom(raw: string): Sponsor | null {
+  if (!raw.trim()) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<Sponsor>;
+    const title = String(parsed.title ?? "").trim();
+    const body = String(parsed.body ?? "").trim();
+    if (!title || !body) return null;
+
+    let url: string | undefined;
+    if (parsed.url) {
+      const candidate = new URL(String(parsed.url));
+      if (candidate.protocol !== "https:" && candidate.protocol !== "http:") return null;
+      url = candidate.toString();
+    }
+
+    return {
+      title: title.slice(0, 60),
+      body: body.slice(0, 160),
+      url,
+      linkText: parsed.linkText ? String(parsed.linkText).trim().slice(0, 30) : undefined,
+    };
+  } catch {
+    // Malformed JSON or an unparseable URL. A broken sponsor shows nothing,
+    // which is the right failure: the app is not about the box.
+    return null;
+  }
+}
+
 /** The interview to run: panel, questions, and the rubric it will be scored against. */
 app.get("/api/interview", (c) => {
   // The guide's process: one top-line question per pillar.
@@ -97,6 +146,7 @@ app.get("/api/interview", (c) => {
       })),
       dimensions,
     },
+    sponsor: sponsorFrom(secret(c, "SPONSOR")),
   });
 });
 
@@ -314,6 +364,7 @@ app.post("/api/custom-question", async (c) => {
         })),
         dimensions,
       },
+      sponsor: sponsorFrom(secret(c, "SPONSOR")),
     });
   } catch (error) {
     if (error instanceof CustomQuestionError) {
@@ -329,5 +380,7 @@ app.get("/api/health", (c) =>
     elevenlabs: Boolean(apiKey(c)),
     /** Whether the second-opinion button is offered. The UI hides it otherwise. */
     secondOpinion: secondOpinionOffered(c),
+    /** Null on every deployment until SPONSOR is set. */
+    sponsor: sponsorFrom(secret(c, "SPONSOR")),
   }),
 );

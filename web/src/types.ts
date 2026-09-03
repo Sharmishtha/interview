@@ -38,10 +38,19 @@ export interface RubricEntry {
   group?: "substance" | "story";
 }
 
+/** Optional sponsor for the rail slot. Absent on every deployment by default. */
+export interface Sponsor {
+  title: string;
+  body: string;
+  url?: string;
+  linkText?: string;
+}
+
 export interface Interview {
   panelists: Panelist[];
   questions: Question[];
   rubric: { pillars: Pillar[]; competencies: RubricEntry[]; dimensions: RubricEntry[] };
+  sponsor?: Sponsor | null;
 }
 
 export interface EvidenceSpan {
